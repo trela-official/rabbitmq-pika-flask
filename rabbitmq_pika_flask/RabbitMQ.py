@@ -32,6 +32,7 @@ class RabbitMQ():
     getConnection: Callable[[], BlockingConnection]
     exchange_name: str
     consumers: set
+    body_parser: Callable or None
 
     def __init__(self, app: Flask = None) -> None:
         self.consumers = set()
@@ -40,10 +41,11 @@ class RabbitMQ():
             self.init_app(app)
 
     # Inits class from flask app
-    def init_app(self, app: Flask):
+    def init_app(self, app: Flask, ssl: bool = False, body_parser: Callable = None):
         self.app = app
         self.config = app.config
         self.exchange_name = app.config.get('MQ_EXCHANGE')
+        self.body_parser = body_parser
         self.getConnection = lambda: BlockingConnection(ConnectionParameters(
             host=app.config.get('MQ_HOST'),
             port=app.config.get('MQ_PORT'),
@@ -91,7 +93,11 @@ class RabbitMQ():
 
         def callback(_ch, method, _routing, body):
             with self.app.app_context():
-                func(routing_key=method.routing_key, body=body.decode())
+                if self.body_parser is not None:
+                    func(self.body_parser(routing_key=method.routing_key),
+                         body=self.body_parser(body.decode()))
+                else:
+                    func(routing_key=method.routing_key, body=body.decode())
 
         channel.basic_consume(
             queue=queue_name, on_message_callback=callback, auto_ack=True)
