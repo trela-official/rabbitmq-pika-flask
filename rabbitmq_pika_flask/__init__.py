@@ -1,1 +1,1 @@
-from rabbitmq_pika_flask.rabmq import RabbitMQ, ExchangeType
+from rabbitmq_pika_flask import RabbitMQ, ExchangeType
