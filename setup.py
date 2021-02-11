@@ -1,8 +1,8 @@
 from distutils.core import setup
 setup(
     # How you named your package folder (MyLib)
-    name='rabbitmq-pika-flask',
-    packages=['rabbitmq-pika-flask'],   # Chose the same as "name"
+    name='rabbitmq_pika_flask',
+    packages=['rabbitmq_pika_flask'],   # Chose the same as "name"
     version='0.1',      # Start with a small number and increase it with every change you make
     # Chose a license from here: https://help.github.com/articles/licensing-a-repository
     license='MIT',
@@ -13,12 +13,12 @@ setup(
     # Provide either the link to your github or to your website
     url='https://github.com/aylton-almeida/rabbitmq-pika-flask',
     # I explain this later on
-    download_url='https://github.com/user/reponame/archive/v_01.tar.gz',
+    download_url='https://github.com/aylton-almeida/rabbitmq-pika-flask/archive/0.1.tar.gz',
     # Keywords that define your package best
     keywords=['FLASK', 'PIKA', 'RABBITMQ', 'MESSAGEQUEUE'],
     install_requires=[            # I get to this in a second
-        'validators',
-        'beautifulsoup4',
+        'Flask>=1.1.1',
+        'pika>=1.2.0',
     ],
     classifiers=[
         # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
