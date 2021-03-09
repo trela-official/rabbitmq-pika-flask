@@ -1,4 +1,5 @@
 import ssl
+import os
 from threading import Thread
 from flask.app import Flask
 from flask.config import Config
@@ -34,26 +35,27 @@ class RabbitMQ():
     consumers: set
     body_parser: Callable or None
 
-    def __init__(self, app: Flask = None) -> None:
+    def __init__(self, app: Flask = None, use_ssl: bool = False, body_parser: Callable = None) -> None:
         self.consumers = set()
 
         if app is not None:
-            self.init_app(app)
+            self.init_app(app, use_ssl, body_parser)
 
     # Inits class from flask app
-    def init_app(self, app: Flask, ssl: bool = False, body_parser: Callable = None):
+    def init_app(self, app: Flask, use_ssl: bool = False, body_parser: Callable = None):
         self.app = app
         self.config = app.config
-        self.exchange_name = app.config.get('MQ_EXCHANGE')
+        self.exchange_name = os.getenv('MQ_EXCHANGE')
         self.body_parser = body_parser
         self.getConnection = lambda: BlockingConnection(ConnectionParameters(
-            host=app.config.get('MQ_HOST'),
-            port=app.config.get('MQ_PORT'),
+            host=os.getenv('MQ_HOST'),
+            port=os.getenv('MQ_PORT'),
             credentials=PlainCredentials(
-                username=app.config.get('MQ_USER'),
-                password=app.config.get('MQ_PASS')
+                username=os.getenv('MQ_USER'),
+                password=os.getenv('MQ_PASS')
             ),
-            ssl_options=SSLOptions(ssl.SSLContext(ssl.PROTOCOL_TLSv1_2))
+            ssl_options=SSLOptions(
+                use_ssl.SSLContext(ssl.PROTOCOL_TLSv1_2))
         ))
 
         # Run every consumer queue
@@ -84,7 +86,7 @@ class RabbitMQ():
             exchange=self.exchange_name, exchange_type=exchange_type)
 
         # Create new queue
-        queue_name = func.__name__
+        queue_name = self.exchange_name.lower() + '_' + func.__name__
         channel.queue_declare(queue_name)
 
         # Bind queue to exchange
