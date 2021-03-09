@@ -55,7 +55,7 @@ class RabbitMQ():
                 password=os.getenv('MQ_PASS')
             ),
             ssl_options=SSLOptions(
-                use_ssl.SSLContext(ssl.PROTOCOL_TLSv1_2))
+                ssl.SSLContext(ssl.PROTOCOL_TLSv1_2))
         ))
 
         # Run every consumer queue

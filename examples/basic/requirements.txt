@@ -5,5 +5,5 @@ Jinja2==2.11.3
 MarkupSafe==1.1.1
 pika==1.2.0
 python-dotenv==0.15.0
-rabbitmq-pika-flask==0.0.8
+rabbitmq-pika-flask==0.0.10
 Werkzeug==1.0.1
