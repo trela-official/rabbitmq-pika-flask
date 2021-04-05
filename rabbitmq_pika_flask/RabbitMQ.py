@@ -4,6 +4,7 @@ from threading import Thread
 from flask.app import Flask
 from flask.config import Config
 from pika import BlockingConnection, ConnectionParameters
+from pika.exceptions import ConnectionClosedByBroker, ConnectionBlockedTimeout
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.connection import SSLOptions
 from pika.credentials import PlainCredentials
@@ -55,7 +56,9 @@ class RabbitMQ():
                 password=os.getenv('MQ_PASS')
             ),
             ssl_options=SSLOptions(
-                ssl.SSLContext(ssl.PROTOCOL_TLSv1_2))
+                ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)),
+            heartbeat=300,
+            blocked_connection_timeout=150
         ))
 
         # Run every consumer queue
@@ -78,33 +81,42 @@ class RabbitMQ():
     @setup_method
     def add_exchange_queue(self, func: Callable,  routing_key: str, queue_name: str, exchange_type: ExchangeType):
 
-        # Create connection channel
-        channel = self.getConnection().channel()
+        def start_consuming():
+            while(True):
+                try:
+                    # Create connection channel
+                    channel = self.getConnection().channel()
 
-        # Declare exchange
-        channel.exchange_declare(
-            exchange=self.exchange_name, exchange_type=exchange_type)
+                    # Declare exchange
+                    channel.exchange_declare(
+                        exchange=self.exchange_name, exchange_type=exchange_type)
 
-        # Create new queue
-        queue_name = self.exchange_name.lower() + '_' + func.__name__
-        channel.queue_declare(queue_name)
+                    # Create new queue
+                    queue_name = self.exchange_name.lower() + '_' + func.__name__
+                    channel.queue_declare(queue_name)
 
-        # Bind queue to exchange
-        channel.queue_bind(exchange=self.exchange_name,
-                           queue=queue_name, routing_key=routing_key)
+                    # Bind queue to exchange
+                    channel.queue_bind(exchange=self.exchange_name,
+                                       queue=queue_name, routing_key=routing_key)
 
-        def callback(_ch, method, _routing, body):
-            with self.app.app_context():
-                if self.body_parser is not None:
-                    func(self.body_parser(routing_key=method.routing_key),
-                         body=self.body_parser(body.decode()))
-                else:
-                    func(routing_key=method.routing_key, body=body.decode())
+                    def callback(_ch, method, _routing, body):
+                        with self.app.app_context():
+                            if self.body_parser is not None:
+                                func(self.body_parser(routing_key=method.routing_key),
+                                     body=self.body_parser(body.decode()))
+                            else:
+                                func(routing_key=method.routing_key,
+                                     body=body.decode())
 
-        channel.basic_consume(
-            queue=queue_name, on_message_callback=callback, auto_ack=True)
+                    channel.basic_consume(
+                        queue=queue_name, on_message_callback=callback, auto_ack=True)
+                    channel.start_consuming()
+                except ConnectionClosedByBroker:
+                    continue
+                except ConnectionBlockedTimeout:
+                    continue
 
-        thread = Thread(target=channel.start_consuming)
+        thread = Thread(target=start_consuming)
         thread.setDaemon(True)
         thread.start()
 
