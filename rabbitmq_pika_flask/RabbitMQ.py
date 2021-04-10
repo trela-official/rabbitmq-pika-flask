@@ -31,7 +31,7 @@ class RabbitMQ():
 
     app: Flask
     config: Config
-    getConnection: Callable[[], BlockingConnection]
+    get_connection: Callable[[], BlockingConnection]
     exchange_name: str
     consumers: set
     body_parser: Callable or None
@@ -48,15 +48,15 @@ class RabbitMQ():
         self.config = app.config
         self.exchange_name = os.getenv('MQ_EXCHANGE')
         self.body_parser = body_parser
-        self.getConnection = lambda: BlockingConnection(ConnectionParameters(
+        self.get_connection = lambda: BlockingConnection(ConnectionParameters(
             host=os.getenv('MQ_HOST'),
             port=os.getenv('MQ_PORT'),
             credentials=PlainCredentials(
                 username=os.getenv('MQ_USER'),
                 password=os.getenv('MQ_PASS')
             ),
-            ssl_options=SSLOptions(
-                ssl.SSLContext(ssl.PROTOCOL_TLSv1_2)),
+            ssl_options=SSLOptions(ssl.SSLContext(
+                ssl.PROTOCOL_TLSv1_2)) if use_ssl else None,
             heartbeat=300,
             blocked_connection_timeout=150
         ))
@@ -85,7 +85,7 @@ class RabbitMQ():
             while(True):
                 try:
                     # Create connection channel
-                    channel = self.getConnection().channel()
+                    channel = self.get_connection().channel()
 
                     # Declare exchange
                     channel.exchange_declare(
@@ -123,7 +123,7 @@ class RabbitMQ():
     # Send message to exchange
 
     def send(self, body: str, routing_key: str, exchange_type: ExchangeType = ExchangeType.DEFAULT):
-        channel = self.getConnection().channel()
+        channel = self.get_connection().channel()
 
         channel.exchange_declare(
             exchange=self.exchange_name, exchange_type=exchange_type)
