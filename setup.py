@@ -1,10 +1,11 @@
 from distutils.core import setup
+
 setup(
     # How you named your package folder (MyLib)
     name='rabbitmq_pika_flask',
     packages=['rabbitmq_pika_flask'],   # Chose the same as "name"
     # Start with a small number and increase it with every change you make
-    version='0.0.12',
+    version='0.0.13',
     # Chose a license from here: https://help.github.com/articles/licensing-a-repository
     license='MIT',
     # Give a short description about your library
