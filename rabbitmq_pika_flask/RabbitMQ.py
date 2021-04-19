@@ -96,7 +96,7 @@ class RabbitMQ():
                         exchange=self.exchange_name, exchange_type=exchange_type)
 
                     # Create new queue
-                    queue_name = self.exchange_name.lower() + '_' + func.__name__ + uuid4()
+                    queue_name = self.exchange_name.lower() + '_' + func.__name__ + str(uuid4())
                     channel.queue_declare(queue_name)
 
                     # Bind queue to exchange
