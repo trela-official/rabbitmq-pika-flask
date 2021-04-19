@@ -1,15 +1,17 @@
-import ssl
 import os
+import ssl
+from functools import update_wrapper
 from threading import Thread
+from typing import Callable
+from uuid import uuid4
+
 from flask.app import Flask
 from flask.config import Config
 from pika import BlockingConnection, ConnectionParameters
-from pika.exceptions import ConnectionClosedByBroker, ConnectionBlockedTimeout
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.connection import SSLOptions
 from pika.credentials import PlainCredentials
-from functools import update_wrapper
-from typing import Callable
+from pika.exceptions import ConnectionBlockedTimeout, ConnectionClosedByBroker
 
 
 def setup_method(f):
@@ -35,19 +37,21 @@ class RabbitMQ():
     exchange_name: str
     consumers: set
     body_parser: Callable or None
+    msg_parser: Callable or None
 
-    def __init__(self, app: Flask = None, use_ssl: bool = False, body_parser: Callable = None) -> None:
+    def __init__(self, app: Flask = None, use_ssl: bool = False, body_parser: Callable = None, msg_parser: Callable = None) -> None:
         self.consumers = set()
 
         if app is not None:
             self.init_app(app, use_ssl, body_parser)
 
     # Inits class from flask app
-    def init_app(self, app: Flask, use_ssl: bool = False, body_parser: Callable = None):
+    def init_app(self, app: Flask, use_ssl: bool = False, body_parser: Callable = None,msg_parser: Callable = None):
         self.app = app
         self.config = app.config
         self.exchange_name = os.getenv('MQ_EXCHANGE')
         self.body_parser = body_parser
+        self.msg_parser = msg_parser
         self.get_connection = lambda: BlockingConnection(ConnectionParameters(
             host=os.getenv('MQ_HOST'),
             port=os.getenv('MQ_PORT'),
@@ -92,7 +96,7 @@ class RabbitMQ():
                         exchange=self.exchange_name, exchange_type=exchange_type)
 
                     # Create new queue
-                    queue_name = self.exchange_name.lower() + '_' + func.__name__
+                    queue_name = self.exchange_name.lower() + '_' + func.__name__ + uuid4()
                     channel.queue_declare(queue_name)
 
                     # Bind queue to exchange
@@ -102,7 +106,7 @@ class RabbitMQ():
                     def callback(_ch, method, _routing, body):
                         with self.app.app_context():
                             if self.body_parser is not None:
-                                func(self.body_parser(routing_key=method.routing_key),
+                                func(routing_key=method.routing_key,
                                      body=self.body_parser(body.decode()))
                             else:
                                 func(routing_key=method.routing_key,
@@ -128,6 +132,9 @@ class RabbitMQ():
         channel.exchange_declare(
             exchange=self.exchange_name, exchange_type=exchange_type)
 
+        if self.msg_parser:
+            body = self.msg_parser(body)
+            
         channel.basic_publish(exchange=self.exchange_name,
                               routing_key=routing_key, body=body)
         channel.close()
