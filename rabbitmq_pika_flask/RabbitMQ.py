@@ -46,7 +46,7 @@ class RabbitMQ():
             self.init_app(app, use_ssl, body_parser)
 
     # Inits class from flask app
-    def init_app(self, app: Flask, use_ssl: bool = False, body_parser: Callable = None,msg_parser: Callable = None):
+    def init_app(self, app: Flask, use_ssl: bool = False, body_parser: Callable = None, msg_parser: Callable = None):
         self.app = app
         self.config = app.config
         self.exchange_name = os.getenv('MQ_EXCHANGE')
@@ -72,14 +72,18 @@ class RabbitMQ():
     # Adds queue functionality to a method
     def queue(self, routing_key: str, queue_name: str = None, exchange_type: ExchangeType = ExchangeType.DEFAULT):
 
-        def decorator(f):
-            def new_consumer(): return self.add_exchange_queue(f, queue_name=queue_name, exchange_type=exchange_type,
-                                                               routing_key=routing_key)
-            self.consumers.add(new_consumer)
+        # ignore flask default reload when on debug mode
 
-            return f
+        if os.getenv('WERKZEUG_RUN_MAIN') == 'true':
 
-        return decorator
+            def decorator(f):
+                def new_consumer(): return self.add_exchange_queue(f, queue_name=queue_name, exchange_type=exchange_type,
+                                                                   routing_key=routing_key)
+                self.consumers.add(new_consumer)
+
+                return f
+
+            return decorator
 
     # Add exchange queue to method
     @setup_method
@@ -96,7 +100,8 @@ class RabbitMQ():
                         exchange=self.exchange_name, exchange_type=exchange_type)
 
                     # Create new queue
-                    queue_name = self.exchange_name.lower() + '_' + func.__name__ + '_' + str(uuid4())
+                    queue_name = self.exchange_name.lower() + '_' + func.__name__ + \
+                        '_' + str(uuid4())
                     channel.queue_declare(queue_name)
 
                     # Bind queue to exchange
@@ -134,7 +139,7 @@ class RabbitMQ():
 
         if self.msg_parser:
             body = self.msg_parser(body)
-            
+
         channel.basic_publish(exchange=self.exchange_name,
                               routing_key=routing_key, body=body)
         channel.close()
