@@ -72,58 +72,51 @@ class RabbitMQ():
     # Adds queue functionality to a method
     def queue(self, routing_key: str, queue_name: str = None, exchange_type: ExchangeType = ExchangeType.DEFAULT):
 
-        # ignore flask default reload when on debug mode
+        def decorator(f):
+            # ignore flask default reload when on debug mode
+            if os.getenv('WERKZEUG_RUN_MAIN') == 'true':
 
-        if os.getenv('WERKZEUG_RUN_MAIN') == 'true' and not self.config.get('DISABLE_QUEUES'):
-
-            def decorator(f):
                 def new_consumer(): return self.add_exchange_queue(f, queue_name=queue_name, exchange_type=exchange_type,
                                                                    routing_key=routing_key)
                 self.consumers.add(new_consumer)
 
-                return f
+            return f
 
-            return decorator
+        return decorator
 
     # Add exchange queue to method
     @setup_method
     def add_exchange_queue(self, func: Callable,  routing_key: str, queue_name: str, exchange_type: ExchangeType):
 
         def start_consuming():
-            while(True):
-                try:
-                    # Create connection channel
-                    channel = self.get_connection().channel()
+            # Create connection channel
+            channel = self.get_connection().channel()
 
-                    # Declare exchange
-                    channel.exchange_declare(
-                        exchange=self.exchange_name, exchange_type=exchange_type)
+            # Declare exchange
+            channel.exchange_declare(
+                exchange=self.exchange_name, exchange_type=exchange_type)
 
-                    # Create new queue
-                    queue_name = self.exchange_name.lower() + '_' + func.__name__ + \
-                        '_' + str(uuid4())
-                    channel.queue_declare(queue_name)
+            # Create new queue
+            queue_name = self.exchange_name.lower() + '_' + func.__name__ + \
+                '_' + str(uuid4())
+            channel.queue_declare(queue_name, durable=True)
 
-                    # Bind queue to exchange
-                    channel.queue_bind(exchange=self.exchange_name,
-                                       queue=queue_name, routing_key=routing_key)
+            # Bind queue to exchange
+            channel.queue_bind(exchange=self.exchange_name,
+                               queue=queue_name, routing_key=routing_key)
 
-                    def callback(_ch, method, _routing, body):
-                        with self.app.app_context():
-                            if self.body_parser is not None:
-                                func(routing_key=method.routing_key,
-                                     body=self.body_parser(body.decode()))
-                            else:
-                                func(routing_key=method.routing_key,
-                                     body=body.decode())
+            def callback(_ch, method, _routing, body):
+                with self.app.app_context():
+                    if self.body_parser is not None:
+                        func(routing_key=method.routing_key,
+                             body=self.body_parser(body.decode()))
+                    else:
+                        func(routing_key=method.routing_key,
+                             body=body.decode())
 
-                    channel.basic_consume(
-                        queue=queue_name, on_message_callback=callback, auto_ack=True)
-                    channel.start_consuming()
-                except ConnectionClosedByBroker:
-                    continue
-                except ConnectionBlockedTimeout:
-                    continue
+            channel.basic_consume(
+                queue=queue_name, on_message_callback=callback, auto_ack=True)
+            channel.start_consuming()
 
         thread = Thread(target=start_consuming)
         thread.setDaemon(True)
