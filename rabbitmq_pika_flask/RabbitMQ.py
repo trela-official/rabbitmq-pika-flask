@@ -90,7 +90,7 @@ class RabbitMQ():
 
         def decorator(f):
             # ignore flask default reload when on debug mode
-            if self.app and (not self.app.debug or os.getenv('WERKZEUG_RUN_MAIN') == 'true'):
+            if os.getenv('FLASK_ENV') == 'production' or os.getenv('WERKZEUG_RUN_MAIN') == 'true':
                 def new_consumer():
                     return self.add_exchange_queue(
                         f, queue_name=queue_name,
