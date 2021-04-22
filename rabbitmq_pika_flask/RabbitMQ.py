@@ -43,7 +43,7 @@ class RabbitMQ():
         self.consumers = set()
 
         if app is not None:
-            self.init_app(app, use_ssl, body_parser)
+            self.init_app(app, use_ssl, body_parser, msg_parser)
 
     # Inits class from flask app
     def init_app(self, app: Flask, use_ssl: bool = False, body_parser: Callable = None, msg_parser: Callable = None):
@@ -74,7 +74,7 @@ class RabbitMQ():
 
         # ignore flask default reload when on debug mode
 
-        if os.getenv('WERKZEUG_RUN_MAIN') == 'true':
+        if os.getenv('WERKZEUG_RUN_MAIN') == 'true' and not self.config.get('DISABLE_QUEUES'):
 
             def decorator(f):
                 def new_consumer(): return self.add_exchange_queue(f, queue_name=queue_name, exchange_type=exchange_type,
