@@ -8,10 +8,8 @@ from uuid import uuid4
 from flask.app import Flask
 from flask.config import Config
 from pika import BlockingConnection, ConnectionParameters
-from pika.adapters.blocking_connection import BlockingChannel
 from pika.connection import SSLOptions
 from pika.credentials import PlainCredentials
-from pika.exceptions import ConnectionBlockedTimeout, ConnectionClosedByBroker
 
 
 def setup_method(f):
@@ -47,6 +45,15 @@ class RabbitMQ():
 
     # Inits class from flask app
     def init_app(self, app: Flask, use_ssl: bool = False, body_parser: Callable = None, msg_parser: Callable = None):
+        """This callback can be used to initialize an application for the use with this RabbitMQ setup.
+
+        Args:
+            app (Flask): Flask app
+            use_ssl (bool, optional): If the connection should use SSL. Defaults to False.
+            body_parser (Callable, optional): A parser function to parse received messages. Defaults to None.
+            msg_parser (Callable, optional): A parser function to parse messages to be sent. Defaults to None.
+        """
+
         self.app = app
         self.config = app.config
         self.exchange_name = os.getenv('MQ_EXCHANGE')
@@ -71,60 +78,76 @@ class RabbitMQ():
 
     # Adds queue functionality to a method
     def queue(self, routing_key: str, queue_name: str = None, exchange_type: ExchangeType = ExchangeType.DEFAULT):
+        """Creates new RabbitMQ queue
 
-        def decorator(f):
-            # ignore flask default reload when on debug mode
-            if os.getenv('WERKZEUG_RUN_MAIN') == 'true':
+        Args:
+            routing_key (str): The routing key for this queue
+            queue_name (str, optional): The queue name, if none is sent, the function name will be used. Defaults to None.
+            exchange_type (ExchangeType, optional): The exchange type to be used. Defaults to ExchangeType.DEFAULT.
 
+        Returns:
+            [type]: [description]
+        """
+
+        # ignore flask default reload when on debug mode
+        if not self.app.debug or os.getenv('WERKZEUG_RUN_MAIN') == 'true':
+
+            def decorator(f):
                 def new_consumer(): return self.add_exchange_queue(f, queue_name=queue_name, exchange_type=exchange_type,
                                                                    routing_key=routing_key)
                 self.consumers.add(new_consumer)
 
-            return f
+                return f
 
-        return decorator
+            return decorator
 
     # Add exchange queue to method
     @setup_method
     def add_exchange_queue(self, func: Callable,  routing_key: str, queue_name: str, exchange_type: ExchangeType):
 
-        def start_consuming():
-            # Create connection channel
-            channel = self.get_connection().channel()
+        # Create connection channel
+        channel = self.get_connection().channel()
 
-            # Declare exchange
-            channel.exchange_declare(
-                exchange=self.exchange_name, exchange_type=exchange_type)
+        # Declare exchange
+        channel.exchange_declare(
+            exchange=self.exchange_name, exchange_type=exchange_type)
 
-            # Create new queue
-            queue_name = self.exchange_name.lower() + '_' + func.__name__ + \
-                '_' + str(uuid4())
-            channel.queue_declare(queue_name, durable=True)
+        # Create new queue
+        queue_name = self.exchange_name.lower() + '_' + (queue_name or func.__name__) + \
+            '_' + str(uuid4())
+        channel.queue_declare(queue_name, durable=True)
 
-            # Bind queue to exchange
-            channel.queue_bind(exchange=self.exchange_name,
-                               queue=queue_name, routing_key=routing_key)
+        # Bind queue to exchange
+        channel.queue_bind(exchange=self.exchange_name,
+                           queue=queue_name, routing_key=routing_key)
 
-            def callback(_ch, method, _routing, body):
-                with self.app.app_context():
-                    if self.body_parser is not None:
-                        func(routing_key=method.routing_key,
-                             body=self.body_parser(body.decode()))
-                    else:
-                        func(routing_key=method.routing_key,
-                             body=body.decode())
+        def callback(_ch, method, _routing, body):
+            with self.app.app_context():
+                if self.body_parser is not None:
+                    func(routing_key=method.routing_key,
+                         body=self.body_parser(body.decode()))
+                else:
+                    func(routing_key=method.routing_key,
+                         body=body.decode())
 
-            channel.basic_consume(
-                queue=queue_name, on_message_callback=callback, auto_ack=True)
-            channel.start_consuming()
+        channel.basic_consume(
+            queue=queue_name, on_message_callback=callback, auto_ack=True)
 
-        thread = Thread(target=start_consuming)
+        thread = Thread(target=channel.start_consuming)
         thread.setDaemon(True)
         thread.start()
 
     # Send message to exchange
 
-    def send(self, body: str, routing_key: str, exchange_type: ExchangeType = ExchangeType.DEFAULT):
+    def send(self, body, routing_key: str, exchange_type: ExchangeType = ExchangeType.DEFAULT):
+        """Sends a message to a given routing_key 
+
+        Args:
+            body (str): The body to be sent
+            routing_key (str): The routing key for the message
+            exchange_type (ExchangeType, optional): The exchange type to be used. Defaults to ExchangeType.DEFAULT.
+        """
+
         channel = self.get_connection().channel()
 
         channel.exchange_declare(
@@ -136,9 +159,3 @@ class RabbitMQ():
         channel.basic_publish(exchange=self.exchange_name,
                               routing_key=routing_key, body=body)
         channel.close()
-
-    def ack_message(channel: BlockingChannel, delivery_tag):
-        if channel.is_open:
-            channel.basic_ack(delivery_tag)
-        else:
-            pass
