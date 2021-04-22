@@ -38,6 +38,7 @@ class RabbitMQ():
     msg_parser: Callable or None
 
     def __init__(self, app: Flask = None, use_ssl: bool = False, body_parser: Callable = None, msg_parser: Callable = None) -> None:
+        self.app = None
         self.consumers = set()
 
         if app is not None:
@@ -85,21 +86,22 @@ class RabbitMQ():
             queue_name (str, optional): The queue name, if none is sent, the function name will be used. Defaults to None.
             exchange_type (ExchangeType, optional): The exchange type to be used. Defaults to ExchangeType.DEFAULT.
 
-        Returns:
-            [type]: [description]
         """
 
-        # ignore flask default reload when on debug mode
-        if not self.app.debug or os.getenv('WERKZEUG_RUN_MAIN') == 'true':
-
-            def decorator(f):
-                def new_consumer(): return self.add_exchange_queue(f, queue_name=queue_name, exchange_type=exchange_type,
-                                                                   routing_key=routing_key)
+        def decorator(f):
+            # ignore flask default reload when on debug mode
+            if self.app and (not self.app.debug or os.getenv('WERKZEUG_RUN_MAIN') == 'true'):
+                def new_consumer():
+                    return self.add_exchange_queue(
+                        f, queue_name=queue_name,
+                        exchange_type=exchange_type,
+                        routing_key=routing_key
+                    )
                 self.consumers.add(new_consumer)
 
-                return f
+            return f
 
-            return decorator
+        return decorator
 
     # Add exchange queue to method
     @setup_method
@@ -140,7 +142,7 @@ class RabbitMQ():
     # Send message to exchange
 
     def send(self, body, routing_key: str, exchange_type: ExchangeType = ExchangeType.DEFAULT):
-        """Sends a message to a given routing_key 
+        """Sends a message to a given routing key 
 
         Args:
             body (str): The body to be sent
