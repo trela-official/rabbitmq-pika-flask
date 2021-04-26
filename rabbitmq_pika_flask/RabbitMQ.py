@@ -159,7 +159,7 @@ class RabbitMQ():
                 retry_count = 0 if retry_count > max_retry_count else retry_count
                 time.sleep(retry_count)
 
-    # Recover queue connection
+    # Setup queue connection
     def _setup_connection(self, *args, **kwargs):
         try:
             self._add_exchange_queue(*args, **kwargs)
