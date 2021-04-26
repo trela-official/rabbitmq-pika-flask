@@ -1,7 +1,9 @@
 import os
 import ssl
+import threading
+import time
 from functools import update_wrapper
-from threading import Thread
+from threading import Lock, Thread
 from typing import Callable
 from uuid import uuid4
 
@@ -92,7 +94,7 @@ class RabbitMQ():
             # ignore flask default reload when on debug mode
             if os.getenv('FLASK_ENV') == 'production' or os.getenv('WERKZEUG_RUN_MAIN') == 'true':
                 def new_consumer():
-                    return self.add_exchange_queue(
+                    return self._setup_connection(
                         f, queue_name=queue_name,
                         exchange_type=exchange_type,
                         routing_key=routing_key
@@ -105,7 +107,7 @@ class RabbitMQ():
 
     # Add exchange queue to method
     @setup_method
-    def add_exchange_queue(self, func: Callable,  routing_key: str, queue_name: str, exchange_type: ExchangeType):
+    def _add_exchange_queue(self, func: Callable,  routing_key: str, queue_name: str, exchange_type: ExchangeType):
 
         # Create connection channel
         channel = self.get_connection().channel()
@@ -138,6 +140,31 @@ class RabbitMQ():
         thread = Thread(target=channel.start_consuming)
         thread.setDaemon(True)
         thread.start()
+
+    # Recover queue connection
+    def _recover_connection(self, *args, **kwargs):
+        max_retry_count = 600  # 10 minutes in seconds
+        retry_count = 0
+
+        lock = threading.Lock()
+        with lock:
+            while(True):
+                try:
+                    self._add_exchange_queue(*args, **kwargs)
+                    lock.release()
+                    break
+                except:
+                    retry_count += 1
+
+                retry_count = 0 if retry_count > max_retry_count else retry_count
+                time.sleep(retry_count)
+
+    # Recover queue connection
+    def _setup_connection(self, *args, **kwargs):
+        try:
+            self._add_exchange_queue(*args, **kwargs)
+        except:
+            self._recover_connection(*args, **kwargs)
 
     # Send message to exchange
 
