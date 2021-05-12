@@ -1,6 +1,5 @@
 import os
 import ssl
-import threading
 import time
 from functools import update_wrapper
 from threading import Lock, Thread
@@ -146,18 +145,14 @@ class RabbitMQ():
         max_retry_count = 600  # 10 minutes in seconds
         retry_count = 0
 
-        lock = threading.Lock()
-        with lock:
-            while(True):
-                try:
-                    self._add_exchange_queue(*args, **kwargs)
-                    lock.release()
-                    break
-                except:
-                    retry_count += 1
+        while(True):
+            try:
+                self._add_exchange_queue(*args, **kwargs)
+            except:
+                retry_count += 1
 
-                retry_count = 0 if retry_count > max_retry_count else retry_count
-                time.sleep(retry_count)
+            retry_count = 0 if retry_count > max_retry_count else retry_count
+            time.sleep(retry_count)
 
     # Setup queue connection
     def _setup_connection(self, *args, **kwargs):
