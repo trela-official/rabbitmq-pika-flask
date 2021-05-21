@@ -135,7 +135,13 @@ class RabbitMQ():
         assert os.getenv(
             'MQ_EXCHANGE') is not None, 'No MQ_EXCHANGE variable found. Please add a default exchange'
 
-    def queue(self, routing_key: str, exchange_type: ExchangeType = ExchangeType.DEFAULT, auto_ack: bool = False, dead_letter_exchange: bool = False):
+    def queue(
+        self,
+        routing_key: str,
+        exchange_type: ExchangeType = ExchangeType.DEFAULT,
+        auto_ack: bool = False,
+        dead_letter_exchange: bool = False
+    ):
         """Creates new RabbitMQ queue
 
         Args:
@@ -161,7 +167,14 @@ class RabbitMQ():
             return f
         return decorator
 
-    def _setup_connection(self, func: Callable,  routing_key: str, exchange_type: ExchangeType, auto_ack: bool, dead_letter_exchange: bool):
+    def _setup_connection(
+        self,
+        func: Callable,
+        routing_key: str,
+        exchange_type: ExchangeType,
+        auto_ack: bool,
+        dead_letter_exchange: bool
+    ):
         """Setup new queue connection in a new thread
 
         Args:
@@ -180,7 +193,14 @@ class RabbitMQ():
         thread.start()
 
     @retry(AMQPConnectionError, delay=5, jitter=(5, 15))
-    def _add_exchange_queue(self, func: Callable,  routing_key: str, exchange_type: ExchangeType, auto_ack: bool, dead_letter_exchange: bool):
+    def _add_exchange_queue(
+        self,
+        func: Callable,
+        routing_key: str,
+        exchange_type: ExchangeType,
+        auto_ack: bool,
+        dead_letter_exchange: bool
+    ):
         """ Creates or connects to new queue, retries connection on failure
 
         Args:

@@ -21,6 +21,7 @@ setup(
     install_requires=[            # I get to this in a second
         'Flask>=1.1.1',
         'pika>=1.2.0',
+        'retry>=0.9.2'
     ],
     classifiers=[
         # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
