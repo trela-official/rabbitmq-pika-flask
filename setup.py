@@ -5,7 +5,7 @@ setup(
     name='rabbitmq_pika_flask',
     packages=['rabbitmq_pika_flask'],   # Chose the same as "name"
     # Start with a small number and increase it with every change you make
-    version='0.0.25',
+    version='1.0.0',
     # Chose a license from here: https://help.github.com/articles/licensing-a-repository
     license='MIT',
     # Give a short description about your library
@@ -21,6 +21,7 @@ setup(
     install_requires=[            # I get to this in a second
         'Flask>=1.1.1',
         'pika>=1.2.0',
+        'retry>=0.9.2'
     ],
     classifiers=[
         # Chose either "3 - Alpha", "4 - Beta" or "5 - Production/Stable" as the current state of your package
