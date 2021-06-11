@@ -192,7 +192,7 @@ class RabbitMQ():
         thread.setDaemon(True)
         thread.start()
 
-    @retry(AMQPConnectionError, delay=5, jitter=(5, 15))
+    @retry((AMQPConnectionError, AssertionError), delay=5, jitter=(5, 15))
     def _add_exchange_queue(
         self,
         func: Callable,
