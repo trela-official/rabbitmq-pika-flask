@@ -4,8 +4,8 @@ import os
 from dotenv import load_dotenv
 from flask import Flask
 
-from src.events import *
-from src.services.rabbit import rabbit
+from .events import *
+from .services.rabbit import rabbit
 
 load_dotenv()
 
@@ -27,7 +27,7 @@ def create_app():
 
     @app.route('/ping', methods=['GET'])
     def _():
-        rabbit.send(body='ping', routing_key='ping.message')
+        rabbit.send(body='ping', routing_key='ping.message', retries=3)
         return 'pong'
 
     @app.route('/ping-error', methods=['GET'])

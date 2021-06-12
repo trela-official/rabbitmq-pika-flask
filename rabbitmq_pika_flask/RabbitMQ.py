@@ -10,6 +10,7 @@ from pika import BlockingConnection, URLParameters, spec
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.exceptions import AMQPConnectionError
 from retry import retry
+from retry.api import retry_call
 
 
 class QueueParams:
@@ -101,7 +102,8 @@ class RabbitMQ():
         params = URLParameters(self.config['MQ_URL'])
         self.get_connection = lambda: BlockingConnection(params)
 
-        self._validate_connection()
+        if os.getenv('FLASK_ENV') == 'production' or os.getenv('WERKZEUG_RUN_MAIN') == 'true':
+            self._validate_connection()
 
         if development:
             self.queue_prefix = 'dev.' + queue_prefix
@@ -239,7 +241,7 @@ class RabbitMQ():
             auto_delete=self.queue_params.auto_delete,
             exclusive=self.queue_params.exclusive
         )
-        self.app.logger.info('DECLARING QUEUE: {}'.format(queue_name))
+        self.app.logger.info('Declaring Queue: {}'.format(queue_name))
 
         # Bind queue to exchange
         channel.queue_bind(exchange=self.exchange_name,
@@ -278,7 +280,26 @@ class RabbitMQ():
 
             raise AMQPConnectionError from err
 
-    def send(self, body, routing_key: str, exchange_type: ExchangeType = ExchangeType.DEFAULT):
+    def _send_msg(self, body, routing_key, exchange_type):
+        try:
+            channel = self.get_connection().channel()
+
+            channel.exchange_declare(
+                exchange=self.exchange_name, exchange_type=exchange_type)
+
+            if self.msg_parser:
+                body = self.msg_parser(body)
+
+            channel.basic_publish(exchange=self.exchange_name,
+                                  routing_key=routing_key, body=body)
+            channel.close()
+        except Exception as err:
+            self.app.logger.error('Error while sending message')
+            self.app.logger.error(err)
+
+            raise AMQPConnectionError from err
+
+    def send(self, body, routing_key: str, exchange_type: ExchangeType = ExchangeType.DEFAULT, retries: int = 5):
         """Sends a message to a given routing key
 
         Args:
@@ -287,14 +308,14 @@ class RabbitMQ():
             exchange_type (ExchangeType, optional): The exchange type to be used. Defaults to ExchangeType.DEFAULT.
         """
 
-        channel = self.get_connection().channel()
-
-        channel.exchange_declare(
-            exchange=self.exchange_name, exchange_type=exchange_type)
-
-        if self.msg_parser:
-            body = self.msg_parser(body)
-
-        channel.basic_publish(exchange=self.exchange_name,
-                              routing_key=routing_key, body=body)
-        channel.close()
+        thread = Thread(target=lambda: retry_call(
+            self._send_msg,
+            (body, routing_key, exchange_type),
+            exceptions=(
+                AMQPConnectionError, AssertionError),
+            tries=retries,
+            delay=5,
+            jitter=(5, 15)
+        ))
+        thread.setDaemon(True)
+        thread.start()
