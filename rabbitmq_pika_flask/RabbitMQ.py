@@ -3,6 +3,7 @@ from enum import Enum
 from functools import wraps
 from threading import Thread
 from typing import Callable
+from uuid import uuid4
 
 from flask.app import Flask
 from flask.config import Config
@@ -106,7 +107,7 @@ class RabbitMQ():
             self._validate_connection()
 
         if development:
-            self.queue_prefix = 'dev.' + queue_prefix
+            self.queue_prefix = 'dev.' + uuid4() + queue_prefix
             self.queue_params = QueueParams(False, True, True)
 
         # Run every consumer queue
@@ -247,7 +248,7 @@ class RabbitMQ():
         channel.queue_bind(exchange=self.exchange_name,
                            queue=queue_name, routing_key=routing_key)
 
-        def callback(_: BlockingChannel, method: spec.Basic.Deliver, __: spec.BasicProperties, body: bytes):
+        def callback(_: BlockingChannel, method: spec.Basic.Deliver, props: spec.BasicProperties, body: bytes):
             with self.app.app_context():
                 decoded_body = body.decode()
 
@@ -255,7 +256,8 @@ class RabbitMQ():
                     func(
                         routing_key=method.routing_key,
                         body=self.body_parser(
-                            decoded_body) if self.body_parser is not None else decoded_body
+                            decoded_body) if self.body_parser is not None else decoded_body,
+                        message_id=props.message_id
                     )
 
                     if not auto_ack:
@@ -290,8 +292,13 @@ class RabbitMQ():
             if self.msg_parser:
                 body = self.msg_parser(body)
 
-            channel.basic_publish(exchange=self.exchange_name,
-                                  routing_key=routing_key, body=body)
+            channel.basic_publish(
+                exchange=self.exchange_name,
+                routing_key=routing_key,
+                body=body,
+                properties=spec.BasicProperties(message_id=str(uuid4()))
+            )
+
             channel.close()
         except Exception as err:
             self.app.logger.error('Error while sending message')
