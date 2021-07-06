@@ -107,7 +107,7 @@ class RabbitMQ():
             self._validate_connection()
 
         if development:
-            self.queue_prefix = 'dev.' + uuid4() + queue_prefix
+            self.queue_prefix = 'dev.' + str(uuid4()) + queue_prefix
             self.queue_params = QueueParams(False, True, True)
 
         # Run every consumer queue

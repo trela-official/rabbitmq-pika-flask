@@ -22,7 +22,7 @@ def create_app():
         'basic',
         json.loads,
         json.dumps,
-        app.config.get('FLASK_ENV') == 'production'
+        development=True
     )
 
     @app.route('/ping', methods=['GET'])
