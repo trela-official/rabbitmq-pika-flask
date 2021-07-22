@@ -1,3 +1,4 @@
+import json
 import os
 from enum import Enum
 from functools import wraps
@@ -296,7 +297,8 @@ class RabbitMQ():
                 exchange=self.exchange_name,
                 routing_key=routing_key,
                 body=body,
-                properties=spec.BasicProperties(message_id=str(uuid4()))
+                properties=spec.BasicProperties(
+                    message_id=hash(json.dumps(body)))
             )
 
             channel.close()
