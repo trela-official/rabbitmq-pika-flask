@@ -2,6 +2,7 @@ import json
 import os
 from enum import Enum
 from functools import wraps
+from hashlib import sha256
 from threading import Thread
 from typing import Callable
 from uuid import uuid4
@@ -298,7 +299,7 @@ class RabbitMQ():
                 routing_key=routing_key,
                 body=body,
                 properties=spec.BasicProperties(
-                    message_id=str(hash(json.dumps(body))))
+                    message_id=sha256(json.dumps(body).encode('utf-8')).hexdigest())
             )
 
             channel.close()
