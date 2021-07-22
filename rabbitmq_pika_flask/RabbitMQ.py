@@ -298,7 +298,7 @@ class RabbitMQ():
                 routing_key=routing_key,
                 body=body,
                 properties=spec.BasicProperties(
-                    message_id=hash(json.dumps(body)))
+                    message_id=str(hash(json.dumps(body))))
             )
 
             channel.close()
