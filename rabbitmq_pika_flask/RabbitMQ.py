@@ -101,6 +101,7 @@ class RabbitMQ():
         self.config = app.config
         self.body_parser = body_parser
         self.msg_parser = msg_parser
+        self.development = development
         self.exchange_name = self.config['MQ_EXCHANGE']
         params = URLParameters(self.config['MQ_URL'])
         self.get_connection = lambda: BlockingConnection(params)
@@ -239,7 +240,7 @@ class RabbitMQ():
 
         # Creates new queue or connects to existing one
         queue_name = self.queue_prefix + '.' + func.__name__.replace('_', '.')
-        if dead_letter_exchange:
+        if dead_letter_exchange and not self.development:
             dead_letter_queue_name = 'dead.letter.{}'.format(queue_name)
             channel.queue_declare(
                 dead_letter_queue_name,
@@ -249,6 +250,11 @@ class RabbitMQ():
             # Bind queue to exchange
             channel.queue_bind(
                 exchange=dead_letter_exchange_name, queue=dead_letter_queue_name, routing_key=routing_key)
+
+            exchange_args = {
+                'x-dead-letter-exchange': dead_letter_exchange_name,
+                'x-dead-letter-routing-key': routing_key
+            }
 
         channel.queue_declare(
             queue_name,
