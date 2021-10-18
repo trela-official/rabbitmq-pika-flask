@@ -101,6 +101,7 @@ class RabbitMQ():
         self.config = app.config
         self.body_parser = body_parser
         self.msg_parser = msg_parser
+        self.development = development
         self.exchange_name = self.config['MQ_EXCHANGE']
         params = URLParameters(self.config['MQ_URL'])
         self.get_connection = lambda: BlockingConnection(params)
@@ -220,31 +221,42 @@ class RabbitMQ():
         connection = self.get_connection()
         channel = connection.channel()
 
-        exchange_args = {}
-
         # declare dead letter exchange if needed
         if dead_letter_exchange:
-            dead_letter_name = 'dead.letter.{}'.format(self.exchange_name)
-            channel.exchange_declare(dead_letter_name, 'direct')
-
-            exchange_args = {
-                'x-dead-letter-exchange': dead_letter_name,
-                'x-dead-letter-routing-key': routing_key
-            }
+            dead_letter_exchange_name = f'dead.letter.{self.exchange_name}'
+            channel.exchange_declare(dead_letter_exchange_name, 'direct')
 
         # Declare exchange
         channel.exchange_declare(
-            exchange=self.exchange_name, exchange_type=exchange_type, arguments=exchange_args)
+            exchange=self.exchange_name, exchange_type=exchange_type)
 
         # Creates new queue or connects to existing one
         queue_name = self.queue_prefix + '.' + func.__name__.replace('_', '.')
+        exchange_args = {}
+        if dead_letter_exchange and not self.development:
+            dead_letter_queue_name = f'dead.letter.{queue_name}'
+            channel.queue_declare(
+                dead_letter_queue_name,
+                durable=self.queue_params.durable,
+            )
+
+            # Bind queue to exchange
+            channel.queue_bind(
+                exchange=dead_letter_exchange_name, queue=dead_letter_queue_name, routing_key=routing_key)
+
+            exchange_args = {
+                'x-dead-letter-exchange': dead_letter_exchange_name,
+                'x-dead-letter-routing-key': routing_key
+            }
+
         channel.queue_declare(
             queue_name,
             durable=self.queue_params.durable,
             auto_delete=self.queue_params.auto_delete,
-            exclusive=self.queue_params.exclusive
+            exclusive=self.queue_params.exclusive,
+            arguments=exchange_args
         )
-        self.app.logger.info('Declaring Queue: {}'.format(queue_name))
+        self.app.logger.info(f'Declaring Queue: {queue_name}')
 
         # Bind queue to exchange
         channel.queue_bind(exchange=self.exchange_name,
