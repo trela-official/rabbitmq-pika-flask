@@ -12,7 +12,7 @@ Install and update using [pip](https://pip.pypa.io/en/stable/quickstart/):
     pip install rabbitmq-pika-flask
 ```
 
-Add the following variables to your environment
+Add the following variables to your environment or the Flask settings:
 
 - FLASK*ENV=Flask environment, such as \_production* or _development_
 - MQ_EXCHANGE=Your exchange name

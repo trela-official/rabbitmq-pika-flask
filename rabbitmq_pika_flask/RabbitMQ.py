@@ -94,11 +94,12 @@ class RabbitMQ():
                 parse messages to be sent. Defaults to None.
         """
 
-        self._check_env()
-
         self.app = app
         self.queue_prefix = queue_prefix
         self.config = app.config
+
+        self._check_env()
+
         self.body_parser = body_parser
         self.msg_parser = msg_parser
         self.development = development
@@ -131,15 +132,15 @@ class RabbitMQ():
         """assert env variables are set
         """
 
-        assert os.getenv(
-            'FLASK_ENV') is not None, 'No FLASK_ENV variable found. Add one such as "production" or "development"'
+        assert any((os.getenv('FLASK_ENV'), self.config['FLASK_ENV'])) \
+               is not None, 'No FLASK_ENV variable found. Add one such as "production" or "development"'
 
-        assert os.getenv(
-            'MQ_URL') is not None, 'No MQ_URL variable found. Please add one following this' + \
-            ' format https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html'
+        assert any((os.getenv('MQ_URL'), self.config['MQ_URL'])) \
+               is not None, 'No MQ_URL variable found. Please add one following this' + \
+               ' format https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html'
 
-        assert os.getenv(
-            'MQ_EXCHANGE') is not None, 'No MQ_EXCHANGE variable found. Please add a default exchange'
+        assert any((os.getenv('MQ_EXCHANGE'), self.config['MQ_EXCHANGE'])) \
+               is not None, 'No MQ_EXCHANGE variable found. Please add a default exchange'
 
     def queue(
         self,
