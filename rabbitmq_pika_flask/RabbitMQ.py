@@ -139,7 +139,7 @@ class RabbitMQ():
                is not None, 'No MQ_URL variable found. Please add one following this' + \
                ' format https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html'
 
-        assert any((os.getenv('MQ_EXCHANGE'), self.config['MQ_EXCHANGE'])) \
+        assert any((os.getenv('MQ_EXCHANGE'), self.config.get('MQ_EXCHANGE'))) \
                is not None, 'No MQ_EXCHANGE variable found. Please add a default exchange'
 
     def queue(
