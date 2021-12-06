@@ -133,14 +133,14 @@ class RabbitMQ():
         """
 
         assert any((os.getenv('FLASK_ENV'), self.config.get('FLASK_ENV'))) \
-               is not None, 'No FLASK_ENV variable found. Add one such as "production" or "development"'
+            is not None, 'No FLASK_ENV variable found. Add one such as "production" or "development"'
 
-        assert any((os.getenv('MQ_URL'), self.config.get('MQ_URL')) \
-               is not None, 'No MQ_URL variable found. Please add one following this' + \
-               ' format https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html'
+        assert any((os.getenv('MQ_URL'), self.config.get('MQ_URL'))) \
+            is not None, 'No MQ_URL variable found. Please add one following this' + \
+            ' format https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html'
 
         assert any((os.getenv('MQ_EXCHANGE'), self.config.get('MQ_EXCHANGE'))) \
-               is not None, 'No MQ_EXCHANGE variable found. Please add a default exchange'
+            is not None, 'No MQ_EXCHANGE variable found. Please add a default exchange'
 
     def queue(
         self,
