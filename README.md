@@ -51,6 +51,7 @@ Check examples in the `examples` folder
 ## Contributing
 
 Still learning how to make a good open source project. Any ideas would be great.
+But if feel free to open an `issue` or `pull request` if you have any problems or ideas.
 
 ## Author
 

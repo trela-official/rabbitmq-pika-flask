@@ -1,0 +1,13 @@
+version: "3"
+
+services:
+  rabbit:
+    container_name: rabbit_pika_flask_container
+    image: rabbitmq:3-management-alpine
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"
+      - "8080:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=mqadmin
+      - RABBITMQ_DEFAULT_PASS=mqadmin

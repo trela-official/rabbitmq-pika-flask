@@ -1,6 +1,5 @@
 import json
 import os
-from enum import Enum
 from functools import wraps
 from hashlib import sha256
 from threading import Thread
@@ -15,30 +14,8 @@ from pika.exceptions import AMQPConnectionError
 from retry import retry
 from retry.api import retry_call
 
-
-class QueueParams:
-    """ Default parameters for queues
-    """
-
-    durable: bool
-    auto_delete: bool
-    exclusive: bool
-
-    def __init__(self, durable=True, auto_delete=False,  exclusive=False) -> None:
-        self.durable = durable
-        self.auto_delete = auto_delete
-        self.exclusive = exclusive
-
-
-class ExchangeType(Enum):
-    """The type of exchange to be used
-    """
-
-    DEFAULT = 'topic'
-    DIRECT = 'direct'
-    FANOUT = 'fanout'
-    TOPIC = 'topic'
-    HEADER = 'header'
+from rabbitmq_pika_flask.ExchangeType import ExchangeType
+from rabbitmq_pika_flask.QueueParams import QueueParams
 
 
 class RabbitMQ():
@@ -72,26 +49,33 @@ class RabbitMQ():
         self.queue_params = queue_params
 
         if app is not None:
-            self.init_app(app, queue_prefix, body_parser,
-                          msg_parser, development)
+            self.init_app(
+                app,
+                queue_prefix,
+                body_parser,
+                msg_parser,
+                development
+            )
 
     # Inits class from flask app
     def init_app(
         self,
         app: Flask,
         queue_prefix: str,
-        body_parser: Callable = None,
-        msg_parser: Callable = None,
+        body_parser: Callable = lambda body: body,
+        msg_parser: Callable = lambda msg: msg,
         development: bool = False
     ):
         """This callback can be used to initialize an application for the use with this RabbitMQ setup.
 
         Args:
             app (Flask): Flask app
+            queue_prefix (str): Prefix for queue names
             body_parser (Callable, optional): A parser function to
                 parse received messages. Defaults to None.
             msg_parser (Callable, optional): A parser function to
                 parse messages to be sent. Defaults to None.
+            development (bool, optional): If the app is in development mode. Defaults to False.
         """
 
         self.app = app
@@ -107,6 +91,7 @@ class RabbitMQ():
         params = URLParameters(self.config['MQ_URL'])
         self.get_connection = lambda: BlockingConnection(params)
 
+        # Avoiding running twice when flask in debug mode
         if os.getenv('FLASK_ENV') == 'production' or os.getenv('WERKZEUG_RUN_MAIN') == 'true':
             self._validate_connection()
 
@@ -270,8 +255,7 @@ class RabbitMQ():
                 try:
                     func(
                         routing_key=method.routing_key,
-                        body=self.body_parser(
-                            decoded_body) if self.body_parser is not None else decoded_body,
+                        body=self.body_parser(decoded_body),
                         message_id=props.message_id
                     )
 
