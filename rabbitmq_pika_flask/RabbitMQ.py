@@ -263,11 +263,11 @@ class RabbitMQ():
                         # ack message after fn was ran
                         channel.basic_ack(method.delivery_tag)
                 except Exception as err:
+                    self.app.logger.error(f'ERROR IN {queue_name}: {err}')
+
                     if not auto_ack:
                         channel.basic_reject(
                             method.delivery_tag, requeue=(not method.redelivered))
-
-                    raise err from err
 
         channel.basic_consume(
             queue=queue_name, on_message_callback=callback, auto_ack=auto_ack)
