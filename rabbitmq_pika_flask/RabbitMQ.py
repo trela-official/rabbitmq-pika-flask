@@ -127,6 +127,11 @@ class RabbitMQ():
         assert any((os.getenv('MQ_EXCHANGE'), self.config.get('MQ_EXCHANGE'))) \
             is not None, 'No MQ_EXCHANGE variable found. Please add a default exchange'
 
+    def _build_queue_name(self, func: Callable):
+        """Builds queue name from function name"""
+
+        return self.queue_prefix + '.' + func.__name__.replace('_', '.')
+
     def queue(
         self,
         routing_key: str,
@@ -180,7 +185,7 @@ class RabbitMQ():
         def create_queue():
             return self._add_exchange_queue(func, routing_key, exchange_type, auto_ack, dead_letter_exchange)
 
-        thread = Thread(target=create_queue)
+        thread = Thread(target=create_queue, name=self._build_queue_name(func))
         thread.setDaemon(True)
         thread.start()
 
@@ -217,7 +222,7 @@ class RabbitMQ():
             exchange=self.exchange_name, exchange_type=exchange_type)
 
         # Creates new queue or connects to existing one
-        queue_name = self.queue_prefix + '.' + func.__name__.replace('_', '.')
+        queue_name = self._build_queue_name(func)
         exchange_args = {}
         if dead_letter_exchange and not self.development:
             dead_letter_queue_name = f'dead.letter.{queue_name}'
