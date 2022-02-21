@@ -214,8 +214,9 @@ class RabbitMQ():
 
         # declare dead letter exchange if needed
         if dead_letter_exchange:
-            dead_letter_exchange_name = f'dead.letter.{self.exchange_name}'
-            channel.exchange_declare(dead_letter_exchange_name, 'direct')
+            dead_letter_exchange_name = f"{os.getenv('APP_NAME')}.dead.letter.{self.exchange_name}"
+            channel.exchange_declare(
+                dead_letter_exchange_name, ExchangeType.TOPIC)
 
         # Declare exchange
         channel.exchange_declare(
@@ -225,7 +226,7 @@ class RabbitMQ():
         queue_name = self._build_queue_name(func)
         exchange_args = {}
         if dead_letter_exchange and not self.development:
-            dead_letter_queue_name = f'dead.letter.{queue_name}'
+            dead_letter_queue_name = f"dead.letter.{queue_name}"
             channel.queue_declare(
                 dead_letter_queue_name,
                 durable=self.queue_params.durable,
@@ -236,8 +237,7 @@ class RabbitMQ():
                 exchange=dead_letter_exchange_name, queue=dead_letter_queue_name, routing_key=routing_key)
 
             exchange_args = {
-                'x-dead-letter-exchange': dead_letter_exchange_name,
-                'x-dead-letter-routing-key': routing_key
+                'x-dead-letter-exchange': dead_letter_exchange_name
             }
 
         channel.queue_declare(
