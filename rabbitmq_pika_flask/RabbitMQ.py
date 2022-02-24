@@ -117,15 +117,15 @@ class RabbitMQ():
         """assert env variables are set
         """
 
-        assert any((os.getenv('FLASK_ENV'), self.config.get('FLASK_ENV'))) \
-            is not None, 'No FLASK_ENV variable found. Add one such as "production" or "development"'
+        assert any((os.getenv('FLASK_ENV'), self.config.get('FLASK_ENV'))), \
+            'No FLASK_ENV variable found. Add one such as "production" or "development"'
 
-        assert any((os.getenv('MQ_URL'), self.config.get('MQ_URL'))) \
-            is not None, 'No MQ_URL variable found. Please add one following this' + \
+        assert any((os.getenv('MQ_URL'), self.config.get('MQ_URL'))), \
+            'No MQ_URL variable found. Please add one following this' + \
             ' format https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html'
 
-        assert any((os.getenv('MQ_EXCHANGE'), self.config.get('MQ_EXCHANGE'))) \
-            is not None, 'No MQ_EXCHANGE variable found. Please add a default exchange'
+        assert any((os.getenv('MQ_EXCHANGE'), self.config.get('MQ_EXCHANGE'))), \
+            'No MQ_EXCHANGE variable found. Please add a default exchange'
 
     def _build_queue_name(self, func: Callable):
         """Builds queue name from function name"""
