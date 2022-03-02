@@ -214,7 +214,7 @@ class RabbitMQ():
 
         # declare dead letter exchange if needed
         if dead_letter_exchange:
-            dead_letter_exchange_name = f"{os.getenv('APP_NAME')}.dead.letter.{self.exchange_name}"
+            dead_letter_exchange_name = f"{self.queue_prefix}.dead.letter.{self.exchange_name}"
             channel.exchange_declare(
                 dead_letter_exchange_name, ExchangeType.TOPIC)
 
