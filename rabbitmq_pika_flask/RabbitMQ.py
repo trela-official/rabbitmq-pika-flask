@@ -214,9 +214,9 @@ class RabbitMQ():
 
         # declare dead letter exchange if needed
         if dead_letter_exchange:
-            dead_letter_exchange_name = f"{self.queue_prefix}.dead.letter.{self.exchange_name}"
+            dead_letter_exchange_name = f"dead.letter.{self.exchange_name}"
             channel.exchange_declare(
-                dead_letter_exchange_name, ExchangeType.TOPIC)
+                dead_letter_exchange_name, ExchangeType.DIRECT)
 
         # Declare exchange
         channel.exchange_declare(
@@ -237,7 +237,9 @@ class RabbitMQ():
                 exchange=dead_letter_exchange_name, queue=dead_letter_queue_name, routing_key=routing_key)
 
             exchange_args = {
-                'x-dead-letter-exchange': dead_letter_exchange_name
+                'x-dead-letter-exchange': dead_letter_exchange_name,
+                'x-dead-letter-routing-key': routing_key
+
             }
 
         channel.queue_declare(
@@ -258,8 +260,14 @@ class RabbitMQ():
                 decoded_body = body.decode()
 
                 try:
+                    # Fetches original message routing_key from headers if it has been dead-lettered
+                    routing_key = method.routing_key
+                    if x_death_props := props.headers.get('x-death'):
+                        x_death_props = x_death_props[0]
+                        routing_key = x_death_props.get('routing-keys')[0]
+
                     func(
-                        routing_key=method.routing_key,
+                        routing_key=routing_key,
                         body=self.body_parser(decoded_body),
                         message_id=props.message_id
                     )
