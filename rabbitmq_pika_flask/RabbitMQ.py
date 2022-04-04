@@ -262,7 +262,7 @@ class RabbitMQ():
                 try:
                     # Fetches original message routing_key from headers if it has been dead-lettered
                     routing_key = method.routing_key
-                    if (getattr(props, 'headers', None)) and (x_death_props := props.headers.get('x-death')):
+                    if (getattr(props, 'headers', None)) and (x_death_props == props.headers.get('x-death')):
                         x_death_props = x_death_props[0]
                         routing_key = x_death_props.get('routing-keys')[0]
 
