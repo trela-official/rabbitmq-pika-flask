@@ -130,7 +130,8 @@ class RabbitMQ():
     def _build_queue_name(self, func: Callable):
         """Builds queue name from function name"""
 
-        return self.queue_prefix + '.' + func.__name__.replace('_', '.')
+        spacer = self.config['MQ_DELIMITER'] if 'MQ_DELIMITER' in self.config else '.'
+        return self.queue_prefix + spacer + func.__name__.replace('_', spacer)
 
     def queue(
         self,
