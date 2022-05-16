@@ -132,7 +132,6 @@ class RabbitMQ():
         spacer = self.config['MQ_DELIMITER'] if 'MQ_DELIMITER' in self.config else '.'
         return self.queue_prefix + spacer + func.__name__.replace('_', spacer)
 
-
     def queue(
         self,
         routing_key: str,
