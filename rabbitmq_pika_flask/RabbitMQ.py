@@ -129,8 +129,9 @@ class RabbitMQ():
 
     def _build_queue_name(self, func: Callable):
         """Builds queue name from function name"""
+        spacer = self.config['MQ_DELIMITER'] if 'MQ_DELIMITER' in self.config else '.'
+        return self.queue_prefix + spacer + func.__name__.replace('_', spacer)
 
-        return self.queue_prefix + '.' + func.__name__.replace('_', '.')
 
     def queue(
         self,
@@ -260,10 +261,9 @@ class RabbitMQ():
                 decoded_body = body.decode()
 
                 try:
-                    # Fetches original message routing_key from headers if it has been dead-lettered
                     routing_key = method.routing_key
-                    if (getattr(props, 'headers', None)) and (x_death_props == props.headers.get('x-death')):
-                        x_death_props = x_death_props[0]
+                    if getattr(props, 'headers', None) and props.headers.get('x-death'):
+                        x_death_props = props.headers.get('x-death')[0]
                         routing_key = x_death_props.get('routing-keys')[0]
 
                     func(
