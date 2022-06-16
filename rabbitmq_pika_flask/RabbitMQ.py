@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import datetime
 from functools import wraps
 from hashlib import sha256
 from threading import Thread
@@ -137,7 +138,8 @@ class RabbitMQ():
         routing_key: str,
         exchange_type: ExchangeType = ExchangeType.DEFAULT,
         auto_ack: bool = False,
-        dead_letter_exchange: bool = False
+        dead_letter_exchange: bool = False,
+        props_needed: list[str] = None
     ):
         """Creates new RabbitMQ queue
 
@@ -146,6 +148,7 @@ class RabbitMQ():
             exchange_type (ExchangeType, optional): The exchange type to be used. Defaults to TOPIC.
             auto_ack (bool, optional): If messages should be auto acknowledged. Defaults to False
             dead_letter_exchange (bool): If a dead letter exchange should be created for this queue
+            props_needed (list[str], optional): List of properties to be passed along with body, such as `sent_at` or `message_id`. Defaults to None.
         """
 
         def decorator(f):
@@ -154,7 +157,7 @@ class RabbitMQ():
                 @wraps(f)
                 def new_consumer():
 
-                    return self._setup_connection(f, routing_key, exchange_type, auto_ack, dead_letter_exchange)
+                    return self._setup_connection(f, routing_key, exchange_type, auto_ack, dead_letter_exchange, props_needed or [])
 
                 # adds consumer to consumers list if not initiated, or runs new consumer if already initiated
                 if self.app is not None:
@@ -170,7 +173,8 @@ class RabbitMQ():
         routing_key: str,
         exchange_type: ExchangeType,
         auto_ack: bool,
-        dead_letter_exchange: bool
+        dead_letter_exchange: bool,
+        props_needed: list[str]
     ):
         """Setup new queue connection in a new thread
 
@@ -180,14 +184,29 @@ class RabbitMQ():
             exchange_type (ExchangeType): Exchange type to be used with new queue
             auto_ack (bool): If messages should be auto acknowledged.
             dead_letter_exchange (bool): If a dead letter exchange should be created for this queue
+            props_needed (list[str]): List of properties to be passed along with body
         """
 
         def create_queue():
-            return self._add_exchange_queue(func, routing_key, exchange_type, auto_ack, dead_letter_exchange)
+            return self._add_exchange_queue(func, routing_key, exchange_type, auto_ack, dead_letter_exchange, props_needed)
 
         thread = Thread(target=create_queue, name=self._build_queue_name(func))
         thread.setDaemon(True)
         thread.start()
+
+    @staticmethod
+    def __get_needed_props(props_needed: list[str], props: spec.BasicProperties):
+        """Sets needed properties for a message"""
+
+        payload = {}
+
+        if 'message_id' in props_needed:
+            payload['message_id'] = props.message_id
+
+        if 'sent_at' in props_needed:
+            payload['sent_at'] = datetime.fromtimestamp(props.timestamp)
+
+        return payload
 
     @retry((AMQPConnectionError, AssertionError), delay=5, jitter=(5, 15))
     def _add_exchange_queue(
@@ -196,7 +215,8 @@ class RabbitMQ():
         routing_key: str,
         exchange_type: ExchangeType,
         auto_ack: bool,
-        dead_letter_exchange: bool
+        dead_letter_exchange: bool,
+        props_needed: list[str]
     ):
         """ Creates or connects to new queue, retries connection on failure
 
@@ -206,6 +226,7 @@ class RabbitMQ():
             exchange_type (ExchangeType): Exchange type to be used with new queue
             auto_ack (bool): If messages should be auto acknowledged.
             dead_letter_exchange (bool): If a dead letter exchange should be created for this queue
+            props_needed (list[str]): List of properties to be passed along with body
         """
 
         # Create connection channel
@@ -260,6 +281,7 @@ class RabbitMQ():
                 decoded_body = body.decode()
 
                 try:
+                    # Fetches original message routing_key from headers if it has been dead-lettered
                     routing_key = method.routing_key
                     if getattr(props, 'headers', None) and props.headers.get('x-death'):
                         x_death_props = props.headers.get('x-death')[0]
@@ -268,13 +290,13 @@ class RabbitMQ():
                     func(
                         routing_key=routing_key,
                         body=self.body_parser(decoded_body),
-                        message_id=props.message_id
+                        **RabbitMQ.__get_needed_props(props_needed, props)
                     )
 
                     if not auto_ack:
                         # ack message after fn was ran
                         channel.basic_ack(method.delivery_tag)
-                except Exception as err:
+                except Exception as err:  # pylint: disable=broad-except
                     self.app.logger.error(f'ERROR IN {queue_name}: {err}')
 
                     if not auto_ack:
@@ -303,12 +325,17 @@ class RabbitMQ():
             if self.msg_parser:
                 body = self.msg_parser(body)
 
+            message_id = sha256(json.dumps(body).encode('utf-8')).hexdigest()
+            timestamp = int(datetime.now().timestamp())
+
             channel.basic_publish(
                 exchange=self.exchange_name,
                 routing_key=routing_key,
                 body=body,
                 properties=spec.BasicProperties(
-                    message_id=sha256(json.dumps(body).encode('utf-8')).hexdigest())
+                    message_id=message_id,
+                    timestamp=timestamp
+                )
             )
 
             channel.close()
