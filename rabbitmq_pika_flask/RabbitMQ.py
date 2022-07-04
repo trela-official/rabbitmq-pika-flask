@@ -4,7 +4,7 @@ from datetime import datetime
 from functools import wraps
 from hashlib import sha256
 from threading import Thread
-from typing import Callable
+from typing import Callable, List
 from uuid import uuid4
 
 from flask.app import Flask
@@ -139,7 +139,7 @@ class RabbitMQ():
         exchange_type: ExchangeType = ExchangeType.DEFAULT,
         auto_ack: bool = False,
         dead_letter_exchange: bool = False,
-        props_needed: list[str] = None
+        props_needed: List[str] = None
     ):
         """Creates new RabbitMQ queue
 
@@ -174,7 +174,7 @@ class RabbitMQ():
         exchange_type: ExchangeType,
         auto_ack: bool,
         dead_letter_exchange: bool,
-        props_needed: list[str]
+        props_needed: List[str]
     ):
         """Setup new queue connection in a new thread
 
@@ -195,7 +195,7 @@ class RabbitMQ():
         thread.start()
 
     @staticmethod
-    def __get_needed_props(props_needed: list[str], props: spec.BasicProperties):
+    def __get_needed_props(props_needed: List[str], props: spec.BasicProperties):
         """Sets needed properties for a message"""
 
         payload = {}
@@ -216,7 +216,7 @@ class RabbitMQ():
         exchange_type: ExchangeType,
         auto_ack: bool,
         dead_letter_exchange: bool,
-        props_needed: list[str]
+        props_needed: List[str]
     ):
         """ Creates or connects to new queue, retries connection on failure
 
