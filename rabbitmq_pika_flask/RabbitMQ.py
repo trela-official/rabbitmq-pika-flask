@@ -11,11 +11,10 @@ from flask.config import Config
 from pika import BlockingConnection, URLParameters, spec
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.exceptions import AMQPConnectionError
-from retry import retry
-from retry.api import retry_call
-
 from rabbitmq_pika_flask.ExchangeType import ExchangeType
 from rabbitmq_pika_flask.QueueParams import QueueParams
+from retry import retry
+from retry.api import retry_call
 
 
 class RabbitMQ():
@@ -117,15 +116,15 @@ class RabbitMQ():
         """assert env variables are set
         """
 
-        assert any((os.getenv('FLASK_ENV'), self.config.get('FLASK_ENV'))) \
-            is not None, 'No FLASK_ENV variable found. Add one such as "production" or "development"'
+        assert any((os.getenv('FLASK_ENV'), self.config.get('FLASK_ENV'))), \
+            'No FLASK_ENV variable found. Add one such as "production" or "development"'
 
-        assert any((os.getenv('MQ_URL'), self.config.get('MQ_URL'))) \
-            is not None, 'No MQ_URL variable found. Please add one following this' + \
+        assert any((os.getenv('MQ_URL'), self.config.get('MQ_URL'))), \
+            'No MQ_URL variable found. Please add one following this' + \
             ' format https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html'
 
-        assert any((os.getenv('MQ_EXCHANGE'), self.config.get('MQ_EXCHANGE'))) \
-            is not None, 'No MQ_EXCHANGE variable found. Please add a default exchange'
+        assert any((os.getenv('MQ_EXCHANGE'), self.config.get('MQ_EXCHANGE'))), \
+            'No MQ_EXCHANGE variable found. Please add a default exchange'
 
     def _build_queue_name(self, func: Callable):
         """Builds queue name from function name"""
@@ -214,8 +213,9 @@ class RabbitMQ():
 
         # declare dead letter exchange if needed
         if dead_letter_exchange:
-            dead_letter_exchange_name = f'dead.letter.{self.exchange_name}'
-            channel.exchange_declare(dead_letter_exchange_name, 'direct')
+            dead_letter_exchange_name = f"dead.letter.{self.exchange_name}"
+            channel.exchange_declare(
+                dead_letter_exchange_name, ExchangeType.DIRECT)
 
         # Declare exchange
         channel.exchange_declare(
@@ -225,7 +225,7 @@ class RabbitMQ():
         queue_name = self._build_queue_name(func)
         exchange_args = {}
         if dead_letter_exchange and not self.development:
-            dead_letter_queue_name = f'dead.letter.{queue_name}'
+            dead_letter_queue_name = f"dead.letter.{queue_name}"
             channel.queue_declare(
                 dead_letter_queue_name,
                 durable=self.queue_params.durable,
@@ -233,21 +233,20 @@ class RabbitMQ():
 
             # Bind queue to exchange
             channel.queue_bind(
-                exchange=dead_letter_exchange_name, queue=dead_letter_queue_name, routing_key=routing_key)
+                exchange=dead_letter_exchange_name, queue=dead_letter_queue_name, routing_key=dead_letter_queue_name)
 
             exchange_args = {
                 'x-dead-letter-exchange': dead_letter_exchange_name,
-                'x-dead-letter-routing-key': routing_key
+                'x-dead-letter-routing-key': dead_letter_queue_name
             }
-
-        channel.queue_declare(
-            queue_name,
-            durable=self.queue_params.durable,
-            auto_delete=self.queue_params.auto_delete,
-            exclusive=self.queue_params.exclusive,
-            arguments=exchange_args
-        )
-        self.app.logger.info(f'Declaring Queue: {queue_name}')
+            channel.queue_declare(
+                queue_name,
+                durable=self.queue_params.durable,
+                auto_delete=self.queue_params.auto_delete,
+                exclusive=self.queue_params.exclusive,
+                arguments=exchange_args
+            )
+            self.app.logger.info(f'Declaring Queue: {queue_name}')
 
         # Bind queue to exchange
         channel.queue_bind(exchange=self.exchange_name,
@@ -258,8 +257,14 @@ class RabbitMQ():
                 decoded_body = body.decode()
 
                 try:
+                    # Fetches original message routing_key from headers if it has been dead-lettered
+                    routing_key = method.routing_key
+                    if (getattr(props, 'headers', None)) and (x_death_props := props.headers.get('x-death')):
+                        x_death_props = x_death_props[0]
+                        routing_key = x_death_props.get('routing-keys')[0]
+
                     func(
-                        routing_key=method.routing_key,
+                        routing_key=routing_key,
                         body=self.body_parser(decoded_body),
                         message_id=props.message_id
                     )
