@@ -12,11 +12,10 @@ from flask.config import Config
 from pika import BlockingConnection, URLParameters, spec
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.exceptions import AMQPConnectionError
-from retry import retry
-from retry.api import retry_call
-
 from rabbitmq_pika_flask.ExchangeType import ExchangeType
 from rabbitmq_pika_flask.QueueParams import QueueParams
+from retry import retry
+from retry.api import retry_call
 
 
 class RabbitMQ():
@@ -255,22 +254,20 @@ class RabbitMQ():
 
             # Bind queue to exchange
             channel.queue_bind(
-                exchange=dead_letter_exchange_name, queue=dead_letter_queue_name, routing_key=routing_key)
+                exchange=dead_letter_exchange_name, queue=dead_letter_queue_name, routing_key=dead_letter_queue_name)
 
             exchange_args = {
                 'x-dead-letter-exchange': dead_letter_exchange_name,
-                'x-dead-letter-routing-key': routing_key
-
+                'x-dead-letter-routing-key': dead_letter_queue_name
             }
-
-        channel.queue_declare(
-            queue_name,
-            durable=self.queue_params.durable,
-            auto_delete=self.queue_params.auto_delete,
-            exclusive=self.queue_params.exclusive,
-            arguments=exchange_args
-        )
-        self.app.logger.info(f'Declaring Queue: {queue_name}')
+            channel.queue_declare(
+                queue_name,
+                durable=self.queue_params.durable,
+                auto_delete=self.queue_params.auto_delete,
+                exclusive=self.queue_params.exclusive,
+                arguments=exchange_args
+            )
+            self.app.logger.info(f'Declaring Queue: {queue_name}')
 
         # Bind queue to exchange
         channel.queue_bind(exchange=self.exchange_name,
@@ -283,6 +280,7 @@ class RabbitMQ():
                 try:
                     # Fetches original message routing_key from headers if it has been dead-lettered
                     routing_key = method.routing_key
+
                     if getattr(props, 'headers', None) and props.headers.get('x-death'):
                         x_death_props = props.headers.get('x-death')[0]
                         routing_key = x_death_props.get('routing-keys')[0]
