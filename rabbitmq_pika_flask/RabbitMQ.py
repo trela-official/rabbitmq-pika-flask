@@ -308,6 +308,7 @@ class RabbitMQ():
                         channel.basic_ack(method.delivery_tag)
                 except Exception as err:  # pylint: disable=broad-except
                     self.app.logger.error(f'ERROR IN {queue_name}: {err}')
+                    self.app.logger.exception(err)
 
                     try:
                         if not auto_ack:
