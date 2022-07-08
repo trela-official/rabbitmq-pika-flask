@@ -4,7 +4,7 @@ from datetime import datetime
 from functools import wraps
 from hashlib import sha256
 from threading import Thread
-from typing import Callable, List
+from typing import Any, Callable, List, Union
 from uuid import uuid4
 
 from flask.app import Flask
@@ -12,10 +12,14 @@ from flask.config import Config
 from pika import BlockingConnection, URLParameters, spec
 from pika.adapters.blocking_connection import BlockingChannel
 from pika.exceptions import AMQPConnectionError
-from rabbitmq_pika_flask.ExchangeType import ExchangeType
-from rabbitmq_pika_flask.QueueParams import QueueParams
 from retry import retry
 from retry.api import retry_call
+
+from rabbitmq_pika_flask.ExchangeType import ExchangeType
+from rabbitmq_pika_flask.QueueParams import QueueParams
+
+
+MessageErrorCallback = Callable[[str, spec.Basic.Deliver, spec.BasicProperties, str, Exception], Any]
 
 
 class RabbitMQ():
@@ -35,6 +39,8 @@ class RabbitMQ():
     queue_prefix: str
     queue_params: QueueParams
 
+    on_message_error_callback: Union[MessageErrorCallback, None]
+
     def __init__(
         self,
         app: Flask = None,
@@ -42,7 +48,8 @@ class RabbitMQ():
         body_parser: Callable = None,
         msg_parser: Callable = None,
         queue_params: QueueParams = QueueParams(),
-        development: bool = False
+        development: bool = False,
+        on_message_error_callback: Union[MessageErrorCallback, None] = None
     ) -> None:
         self.app = None
         self.consumers = set()
@@ -54,7 +61,8 @@ class RabbitMQ():
                 queue_prefix,
                 body_parser,
                 msg_parser,
-                development
+                development,
+                on_message_error_callback
             )
 
     # Inits class from flask app
@@ -64,7 +72,8 @@ class RabbitMQ():
         queue_prefix: str,
         body_parser: Callable = lambda body: body,
         msg_parser: Callable = lambda msg: msg,
-        development: bool = False
+        development: bool = False,
+        on_message_error_callback: Union[MessageErrorCallback, None] = None
     ):
         """This callback can be used to initialize an application for the use with this RabbitMQ setup.
 
@@ -76,6 +85,8 @@ class RabbitMQ():
             msg_parser (Callable, optional): A parser function to
                 parse messages to be sent. Defaults to None.
             development (bool, optional): If the app is in development mode. Defaults to False.
+            on_message_error_callback (Callable, optional): Function that's called when the processing of
+                a message fails due to an exception.
         """
 
         self.app = app
@@ -88,6 +99,7 @@ class RabbitMQ():
         self.msg_parser = msg_parser
         self.development = development
         self.exchange_name = self.config['MQ_EXCHANGE']
+        self.on_message_error_callback = on_message_error_callback
         params = URLParameters(self.config['MQ_URL'])
         self.get_connection = lambda: BlockingConnection(params)
 
@@ -297,9 +309,14 @@ class RabbitMQ():
                 except Exception as err:  # pylint: disable=broad-except
                     self.app.logger.error(f'ERROR IN {queue_name}: {err}')
 
-                    if not auto_ack:
-                        channel.basic_reject(
-                            method.delivery_tag, requeue=(not method.redelivered))
+                    try:
+                        if not auto_ack:
+                            channel.basic_reject(
+                                method.delivery_tag, requeue=(not method.redelivered)
+                            )
+                    finally:
+                        if self.on_message_error_callback is not None:
+                            self.on_message_error_callback(queue_name, method, props, decoded_body, err)
 
         channel.basic_consume(
             queue=queue_name, on_message_callback=callback, auto_ack=auto_ack)
