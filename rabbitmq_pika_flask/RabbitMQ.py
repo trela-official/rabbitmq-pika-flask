@@ -272,14 +272,15 @@ class RabbitMQ():
                 'x-dead-letter-exchange': dead_letter_exchange_name,
                 'x-dead-letter-routing-key': dead_letter_queue_name
             }
-            channel.queue_declare(
-                queue_name,
-                durable=self.queue_params.durable,
-                auto_delete=self.queue_params.auto_delete,
-                exclusive=self.queue_params.exclusive,
-                arguments=exchange_args
-            )
-            self.app.logger.info(f'Declaring Queue: {queue_name}')
+        
+        channel.queue_declare(
+            queue_name,
+            durable=self.queue_params.durable,
+            auto_delete=self.queue_params.auto_delete,
+            exclusive=self.queue_params.exclusive,
+            arguments=exchange_args
+        )
+        self.app.logger.info(f'Declaring Queue: {queue_name}')
 
         # Bind queue to exchange
         channel.queue_bind(exchange=self.exchange_name,
