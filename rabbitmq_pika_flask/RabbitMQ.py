@@ -282,6 +282,7 @@ class RabbitMQ:
         # Creates new queue or connects to existing one
         queue_name = self._build_queue_name(func)
         exchange_args = {}
+        dead_letter_queue_name = None
         if dead_letter_exchange and not self.development:
             dead_letter_queue_name = f"dead.letter.{queue_name}"
             channel.queue_declare(
@@ -352,9 +353,8 @@ class RabbitMQ:
                             )
                     finally:
                         if self.on_message_error_callback is not None:
-                            dlq_name = dead_letter_queue_name if dead_letter_exchange else None
                             self.on_message_error_callback(
-                                queue_name, dlq_name, method, props, decoded_body, err
+                                queue_name, dead_letter_queue_name, method, props, decoded_body, err
                             )
 
         channel.basic_consume(
