@@ -18,9 +18,9 @@ from retry.api import retry_call
 from rabbitmq_pika_flask.ExchangeType import ExchangeType
 from rabbitmq_pika_flask.QueueParams import QueueParams
 
-
+# (queue_name, dlq_name, method, props, body, exception)
 MessageErrorCallback = Callable[
-    [str, spec.Basic.Deliver, spec.BasicProperties, str, Exception], Any
+    [str, Union[str, None], spec.Basic.Deliver, spec.BasicProperties, str, Exception], Any
 ]
 
 
@@ -352,8 +352,9 @@ class RabbitMQ:
                             )
                     finally:
                         if self.on_message_error_callback is not None:
+                            dlq_name = dead_letter_queue_name if dead_letter_exchange else None
                             self.on_message_error_callback(
-                                queue_name, method, props, decoded_body, err
+                                queue_name, dlq_name, method, props, decoded_body, err
                             )
 
         channel.basic_consume(
