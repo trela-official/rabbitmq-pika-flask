@@ -19,7 +19,6 @@ from rabbitmq_pika_flask.ExchangeType import ExchangeType
 from rabbitmq_pika_flask.QueueParams import QueueParams
 
 # (queue_name, dlq_name, method, props, body, exception)
-
 MessageErrorCallback = Callable[
     [str, Union[str, None], spec.Basic.Deliver, spec.BasicProperties, str, Exception], Any
 ]
