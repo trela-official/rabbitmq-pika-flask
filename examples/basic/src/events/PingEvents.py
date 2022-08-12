@@ -1,4 +1,4 @@
-from ..services.rabbit import rabbit
+from examples.basic.src.services.rabbit import rabbit
 
 
 @rabbit.queue(routing_key='ping.*', dead_letter_exchange=True, props_needed=["message_id"])
