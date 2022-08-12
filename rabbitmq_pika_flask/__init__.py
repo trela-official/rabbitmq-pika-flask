@@ -1,2 +1,2 @@
-from .RabbitMQ import RabbitMQ
 from .RabbitMQ import ExchangeType
+from .RabbitMQ import RabbitMQ

@@ -19,6 +19,7 @@ from rabbitmq_pika_flask.ExchangeType import ExchangeType
 from rabbitmq_pika_flask.QueueParams import QueueParams
 
 # (queue_name, dlq_name, method, props, body, exception)
+
 MessageErrorCallback = Callable[
     [str, Union[str, None], spec.Basic.Deliver, spec.BasicProperties, str, Exception], Any
 ]
@@ -417,6 +418,8 @@ class RabbitMQ:
             body (str): The body to be sent
             routing_key (str): The routing key for the message
             exchange_type (ExchangeType, optional): The exchange type to be used. Defaults to ExchangeType.DEFAULT.
+            retries (int, optional): Number of retries to send the message. Defaults to 5.
+            message_version (str): Message version number.
         """
 
         thread = Thread(
@@ -438,6 +441,7 @@ class RabbitMQ:
         routing_key: str,
         exchange_type: ExchangeType = ExchangeType.DEFAULT,
         retries: int = 5,
+        message_version: str = "v1.0.0"
     ):
         """Sends a message to a given routing key synchronously
 
@@ -446,13 +450,14 @@ class RabbitMQ:
             routing_key (str): The routing key for the message
             exchange_type (ExchangeType, optional): The exchange type to be used. Defaults to ExchangeType.DEFAULT.
             retries (int, optional): Number of retries to send the message. Defaults to 5.
+            message_version (str): Message version number.
         """
 
         retry_call(
             self._send_msg,
-            (body, routing_key, exchange_type),
+            (body, routing_key, exchange_type, message_version),
             exceptions=(AMQPConnectionError, AssertionError),
             tries=retries,
             delay=5,
-            jitter=(5, 15),
+            jitter=(5, 15)
         )
