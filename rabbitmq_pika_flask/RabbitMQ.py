@@ -1,6 +1,8 @@
+import inspect
 import json
 import os
 from datetime import datetime
+from enum import Enum, auto
 from functools import wraps
 from hashlib import sha256
 from threading import Thread
@@ -22,6 +24,14 @@ from rabbitmq_pika_flask.QueueParams import QueueParams
 MessageErrorCallback = Callable[
     [str, Union[str, None], spec.Basic.Deliver, spec.BasicProperties, str, Exception], Any
 ]
+
+
+class OptionalProps(Enum):
+    """Props that can be optionally passed to functions decorated by @queue."""
+
+    message_id = auto()
+    sent_at = auto()
+    message_version = auto()
 
 
 class RabbitMQ:
@@ -156,7 +166,7 @@ class RabbitMQ:
         exchange_type: ExchangeType = ExchangeType.DEFAULT,
         auto_ack: bool = False,
         dead_letter_exchange: bool = False,
-        props_needed: List[str] = None,
+        props_needed: Union[List[str], None] = None,
     ):
         """Creates new RabbitMQ queue
 
@@ -174,6 +184,12 @@ class RabbitMQ:
                 os.getenv("FLASK_ENV") == "production"
                 or os.getenv("WERKZEUG_RUN_MAIN") == "true"
             ):
+                nonlocal props_needed
+                if props_needed is None:
+                    f_signature = inspect.signature(f).parameters
+                    props_needed = [
+                        prop.name for prop in OptionalProps if prop.name in f_signature
+                    ]
 
                 @wraps(f)
                 def new_consumer():
