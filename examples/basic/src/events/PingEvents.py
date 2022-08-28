@@ -1,7 +1,7 @@
-from ..services.rabbit import rabbit
+from examples.basic.src.services.rabbit import rabbit
 
 
-@rabbit.queue(routing_key='ping.*', dead_letter_exchange=True)
+@rabbit.queue(routing_key='ping.*', dead_letter_exchange=True, props_needed=["message_id"])
 def ping_event(routing_key, body, message_id):
     print('Message received:')
     print('\tKey: {}'.format(routing_key))
