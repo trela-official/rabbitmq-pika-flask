@@ -252,7 +252,7 @@ class RabbitMQ:
 
         payload = {}
 
-        if not props_needed or "message_id" in props_needed:
+        if "message_id" in props_needed:
             payload["message_id"] = props.message_id
 
         if "sent_at" in props_needed:
