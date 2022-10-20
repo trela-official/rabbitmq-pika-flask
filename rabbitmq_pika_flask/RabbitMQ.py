@@ -243,7 +243,7 @@ class RabbitMQ:
             )
 
         thread = Thread(target=create_queue, name=self._build_queue_name(func))
-        thread.setDaemon(True)
+        thread.daemon = True
         thread.start()
 
     @staticmethod
@@ -447,7 +447,7 @@ class RabbitMQ:
                 jitter=(5, 15),
             )
         )
-        thread.setDaemon(True)
+        thread.daemon = True
         thread.start()
 
     def sync_send(
