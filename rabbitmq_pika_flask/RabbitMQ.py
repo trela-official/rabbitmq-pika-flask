@@ -142,9 +142,13 @@ class RabbitMQ:
     def _check_env(self):
         """assert env variables are set"""
 
-        assert any(
+        if not any(
             (os.getenv("FLASK_ENV"), self.config.get("FLASK_ENV"))
-        ), 'No FLASK_ENV variable found. Add one such as "production" or "development"'
+        ):
+            """
+            If FLASK_ENV is not set, assumes development configs
+            """
+            self.config["FLASK_ENV"] = "development"
 
         assert any((os.getenv("MQ_URL"), self.config.get("MQ_URL"))), (
             "No MQ_URL variable found. Please add one following this"
