@@ -3,8 +3,10 @@ from typing import Any, Callable, Iterator
 from pika import spec
 
 
-CallNext = Callable[["RabbitConsumerMessage"], Any]
-RabbitConsumerMiddleware = Callable[["RabbitConsumerMessage", CallNext], Any]
+RabbitConsumerMiddlewareCallNext = Callable[["RabbitConsumerMessage"], Any]
+RabbitConsumerMiddleware = Callable[
+    ["RabbitConsumerMessage", RabbitConsumerMiddlewareCallNext], Any
+]
 
 
 class RabbitConsumerMiddlewareError(RuntimeError):
