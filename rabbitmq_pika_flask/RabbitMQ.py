@@ -1,4 +1,5 @@
 import inspect
+import itertools
 import json
 import os
 from datetime import datetime
@@ -19,6 +20,11 @@ from retry.api import retry_call
 
 from rabbitmq_pika_flask.ExchangeType import ExchangeType
 from rabbitmq_pika_flask.QueueParams import QueueParams
+from rabbitmq_pika_flask.RabbitConsumerMiddleware import (
+    RabbitConsumerMessage,
+    RabbitConsumerMiddleware,
+    call_middlewares,
+)
 
 # (queue_name, dlq_name, method, props, body, exception)
 MessageErrorCallback = Callable[
@@ -51,6 +57,7 @@ class RabbitMQ:
     queue_params: QueueParams
 
     on_message_error_callback: Union[MessageErrorCallback, None]
+    middlewares: List[RabbitConsumerMiddleware]
 
     def __init__(
         self,
@@ -61,10 +68,12 @@ class RabbitMQ:
         queue_params: QueueParams = QueueParams(),
         development: bool = False,
         on_message_error_callback: Union[MessageErrorCallback, None] = None,
+        middlewares: Union[List[RabbitConsumerMiddleware], None] = None,
     ) -> None:
         self.app = None
         self.consumers = set()
         self.queue_params = queue_params
+        self.middlewares = middlewares or []
 
         if app is not None:
             self.init_app(
@@ -85,6 +94,7 @@ class RabbitMQ:
         msg_parser: Callable = lambda msg: msg,
         development: bool = False,
         on_message_error_callback: Union[MessageErrorCallback, None] = None,
+        middlewares: Union[List[RabbitConsumerMiddleware], None] = None,
     ):
         """This callback can be used to initialize an application for the use with this RabbitMQ setup.
 
@@ -98,6 +108,8 @@ class RabbitMQ:
             development (bool, optional): If the app is in development mode. Defaults to False.
             on_message_error_callback (Callable, optional): Function that's called when the processing of
                 a message fails due to an exception.
+            middlewares: List of callables that are called, in order, to process a rabbitmq
+                message received from the queue, before finally calling the user consumer func.
         """
 
         self.app = app
@@ -111,6 +123,8 @@ class RabbitMQ:
         self.development = development
         self.exchange_name = self.config["MQ_EXCHANGE"]
         self.on_message_error_callback = on_message_error_callback
+        self.middlewares.extend(middlewares or [])
+
         params = URLParameters(self.config["MQ_URL"])
         self.get_connection = lambda: BlockingConnection(params)
 
@@ -339,6 +353,15 @@ class RabbitMQ:
             exchange=self.exchange_name, queue=queue_name, routing_key=routing_key
         )
 
+        def user_consumer(message: RabbitConsumerMessage, call_next) -> None:
+            """User consumer as a middleware. Calls the consumer `func`."""
+            func(
+                routing_key=message.routing_key,
+                body=message.parsed_body,
+                **RabbitMQ.__get_needed_props(props_needed, message.props),
+            )
+            call_next(message)
+
         def callback(
             _: BlockingChannel,
             method: spec.Basic.Deliver,
@@ -356,10 +379,11 @@ class RabbitMQ:
                         x_death_props = props.headers.get("x-death")[0]
                         routing_key = x_death_props.get("routing-keys")[0]
 
-                    func(
-                        routing_key=routing_key,
-                        body=self.body_parser(decoded_body),
-                        **RabbitMQ.__get_needed_props(props_needed, props),
+                    message = RabbitConsumerMessage(
+                        routing_key, body, self.body_parser(decoded_body), method, props
+                    )
+                    call_middlewares(
+                        message, itertools.chain(list(self.middlewares), [user_consumer])
                     )
 
                     if not auto_ack:
