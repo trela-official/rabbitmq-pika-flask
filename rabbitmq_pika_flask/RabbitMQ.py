@@ -20,7 +20,11 @@ from retry.api import retry_call
 
 from rabbitmq_pika_flask.ExchangeType import ExchangeType
 from rabbitmq_pika_flask.QueueParams import QueueParams
-from rabbitmq_pika_flask.RabbitConsumerMessage import RabbitConsumerMessage, RabbitConsumerMiddleware
+from rabbitmq_pika_flask.RabbitConsumerMiddleware import (
+    RabbitConsumerMessage,
+    RabbitConsumerMiddleware,
+    call_middlewares,
+)
 
 # (queue_name, dlq_name, method, props, body, exception)
 MessageErrorCallback = Callable[
@@ -378,8 +382,8 @@ class RabbitMQ:
                     message = RabbitConsumerMessage(
                         routing_key, body, self.body_parser(decoded_body), method, props
                     )
-                    message.call_middlewares(
-                        itertools.chain(list(self.middlewares), [user_consumer])
+                    call_middlewares(
+                        message, itertools.chain(list(self.middlewares), [user_consumer])
                     )
 
                     if not auto_ack:
