@@ -417,7 +417,9 @@ class RabbitMQ:
 
             raise AMQPConnectionError from err
 
-    def _send_msg(self, body, routing_key, exchange_type, message_version: str = "v1.0.0"):
+    def _send_msg(
+        self, body, routing_key, exchange_type, message_version: str = "v1.0.0", **properties
+    ):
         try:
             channel = self.get_connection().channel()
 
@@ -428,16 +430,20 @@ class RabbitMQ:
             if self.msg_parser:
                 body = self.msg_parser(body)
 
-            message_id = sha256(json.dumps(body).encode("utf-8")).hexdigest()
-            timestamp = int(datetime.now().timestamp())
+            if "message_id" not in properties:
+                properties["message_id"] = sha256(json.dumps(body).encode("utf-8")).hexdigest()
+            if "timestamp" not in properties:
+                properties["timestamp"] = int(datetime.now().timestamp())
+
+            if "headers" not in properties:
+                properties["headers"] = {}
+            properties["headers"]["x-message-version"] = message_version
 
             channel.basic_publish(
                 exchange=self.exchange_name,
                 routing_key=routing_key,
                 body=body,
-                properties=spec.BasicProperties(
-                    message_id=message_id, timestamp=timestamp, headers={"x-message-version": message_version}
-                ),
+                properties=spec.BasicProperties(**properties),
             )
 
             channel.close()
@@ -453,7 +459,8 @@ class RabbitMQ:
         routing_key: str,
         exchange_type: ExchangeType = ExchangeType.DEFAULT,
         retries: int = 5,
-        message_version: str = "v1.0.0"
+        message_version: str = "v1.0.0",
+        **properties
     ):
         """Sends a message to a given routing key
 
@@ -463,17 +470,13 @@ class RabbitMQ:
             exchange_type (ExchangeType, optional): The exchange type to be used. Defaults to ExchangeType.DEFAULT.
             retries (int, optional): Number of retries to send the message. Defaults to 5.
             message_version (str): Message version number.
+            properties (dict[str, Any]): Additional properties to pass to spec.BasicProperties
         """
 
         thread = Thread(
-            target=lambda: retry_call(
-                self._send_msg,
-                (body, routing_key, exchange_type, message_version),
-                exceptions=(AMQPConnectionError, AssertionError),
-                tries=retries,
-                delay=5,
-                jitter=(5, 15),
-            )
+            target=lambda: self.sync_send(
+                body, routing_key, exchange_type, retries, message_version, **properties
+            ),
         )
         thread.daemon = True
         thread.start()
@@ -484,7 +487,8 @@ class RabbitMQ:
         routing_key: str,
         exchange_type: ExchangeType = ExchangeType.DEFAULT,
         retries: int = 5,
-        message_version: str = "v1.0.0"
+        message_version: str = "v1.0.0",
+        **properties
     ):
         """Sends a message to a given routing key synchronously
 
@@ -494,11 +498,13 @@ class RabbitMQ:
             exchange_type (ExchangeType, optional): The exchange type to be used. Defaults to ExchangeType.DEFAULT.
             retries (int, optional): Number of retries to send the message. Defaults to 5.
             message_version (str): Message version number.
+            properties (dict[str, Any]): Additional properties to pass to spec.BasicProperties
         """
 
         retry_call(
             self._send_msg,
             (body, routing_key, exchange_type, message_version),
+            properties,
             exceptions=(AMQPConnectionError, AssertionError),
             tries=retries,
             delay=5,
