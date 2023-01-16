@@ -180,7 +180,7 @@ class RabbitMQ:
 
     def queue(
         self,
-        routing_key: str | List[str],
+        routing_key: Union[str, List[str]],
         exchange_type: ExchangeType = ExchangeType.DEFAULT,
         auto_ack: bool = False,
         dead_letter_exchange: bool = False,
@@ -189,7 +189,7 @@ class RabbitMQ:
         """Creates new RabbitMQ queue
 
         Args:
-            routing_key (str): The routing key for this queue
+            routing_key (str | list[str]): The routing key(s) for this queue
             exchange_type (ExchangeType, optional): The exchange type to be used. Defaults to TOPIC.
             auto_ack (bool, optional): If messages should be auto acknowledged. Defaults to False
             dead_letter_exchange (bool): If a dead letter exchange should be created for this queue
@@ -233,7 +233,7 @@ class RabbitMQ:
     def _setup_connection(
         self,
         func: Callable,
-        routing_key: str | List[str],
+        routing_key: Union[str, List[str]],
         exchange_type: ExchangeType,
         auto_ack: bool,
         dead_letter_exchange: bool,
@@ -243,7 +243,7 @@ class RabbitMQ:
 
         Args:
             func (Callable): function to run as callback for a new message
-            routing_key (str): routing key for the new queue bind
+            routing_key (str | list[str]): routing key(s) for the new queue bind
             exchange_type (ExchangeType): Exchange type to be used with new queue
             auto_ack (bool): If messages should be auto acknowledged.
             dead_letter_exchange (bool): If a dead letter exchange should be created for this queue
@@ -285,7 +285,7 @@ class RabbitMQ:
     def _add_exchange_queue(
         self,
         func: Callable,
-        routing_key: str | List[str],
+        routing_key: Union[str, List[str]],
         exchange_type: ExchangeType,
         auto_ack: bool,
         dead_letter_exchange: bool,
@@ -295,7 +295,7 @@ class RabbitMQ:
 
         Args:
             func (Callable): function to run as callback for a new message
-            routing_key (str): routing key for the new queue bind
+            routing_key (str | list[str]): routing key(s) for the new queue bind
             exchange_type (ExchangeType): Exchange type to be used with new queue
             auto_ack (bool): If messages should be auto acknowledged.
             dead_letter_exchange (bool): If a dead letter exchange should be created for this queue
