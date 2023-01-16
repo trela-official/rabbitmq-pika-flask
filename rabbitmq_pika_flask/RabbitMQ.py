@@ -180,7 +180,7 @@ class RabbitMQ:
 
     def queue(
         self,
-        routing_key: str,
+        routing_key: str | List[str],
         exchange_type: ExchangeType = ExchangeType.DEFAULT,
         auto_ack: bool = False,
         dead_letter_exchange: bool = False,
@@ -233,7 +233,7 @@ class RabbitMQ:
     def _setup_connection(
         self,
         func: Callable,
-        routing_key: str,
+        routing_key: str | List[str],
         exchange_type: ExchangeType,
         auto_ack: bool,
         dead_letter_exchange: bool,
@@ -285,7 +285,7 @@ class RabbitMQ:
     def _add_exchange_queue(
         self,
         func: Callable,
-        routing_key: str,
+        routing_key: str | List[str],
         exchange_type: ExchangeType,
         auto_ack: bool,
         dead_letter_exchange: bool,
@@ -349,9 +349,11 @@ class RabbitMQ:
         self.app.logger.info(f"Declaring Queue: {queue_name}")
 
         # Bind queue to exchange
-        channel.queue_bind(
-            exchange=self.exchange_name, queue=queue_name, routing_key=routing_key
-        )
+        routing_keys = routing_key if isinstance(routing_key, list) else [routing_key]
+        for routing_key in routing_keys:
+            channel.queue_bind(
+                exchange=self.exchange_name, queue=queue_name, routing_key=routing_key
+            )
 
         def user_consumer(message: RabbitConsumerMessage, call_next) -> None:
             """User consumer as a middleware. Calls the consumer `func`."""
