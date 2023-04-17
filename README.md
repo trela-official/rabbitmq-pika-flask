@@ -14,7 +14,7 @@ Install and update using [pip](https://pip.pypa.io/en/stable/quickstart/):
 
 Add the following variables to your environment or the Flask settings:
 
-- FLASK*ENV=Flask environment, such as \_production* or _development_
+- FLASK_ENV=Flask environment, such as \_production* or _development_
 - MQ_EXCHANGE=Your exchange name
 - MQ_URL=Your MQ URL following [this format](https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html)
 
