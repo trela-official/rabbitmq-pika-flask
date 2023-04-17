@@ -68,11 +68,11 @@ class RabbitMQ:
         queue_prefix: str = "",
         body_parser: Callable = None,
         msg_parser: Callable = None,
-        exchange_params: ExchangeParams = ExchangeParams(),
         queue_params: QueueParams = QueueParams(),
         development: bool = False,
         on_message_error_callback: Union[MessageErrorCallback, None] = None,
         middlewares: Union[List[RabbitConsumerMiddleware], None] = None,
+        exchange_params: ExchangeParams = ExchangeParams(),
     ) -> None:
         self.app = None
         self.consumers = set()
