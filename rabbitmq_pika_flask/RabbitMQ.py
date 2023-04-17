@@ -19,6 +19,7 @@ from retry import retry
 from retry.api import retry_call
 
 from rabbitmq_pika_flask.ExchangeType import ExchangeType
+from rabbitmq_pika_flask.ExchangeParams import ExchangeParams
 from rabbitmq_pika_flask.QueueParams import QueueParams
 from rabbitmq_pika_flask.RabbitConsumerMiddleware import (
     RabbitConsumerMessage,
@@ -47,11 +48,13 @@ class RabbitMQ:
     config: Config
 
     get_connection: Callable[[], BlockingConnection]
-    exchange_name: str
     consumers: set
 
     body_parser: Callable or None
     msg_parser: Callable or None
+
+    exchange_name: str
+    exchange_params: ExchangeParams
 
     queue_prefix: str
     queue_params: QueueParams
@@ -69,9 +72,11 @@ class RabbitMQ:
         development: bool = False,
         on_message_error_callback: Union[MessageErrorCallback, None] = None,
         middlewares: Union[List[RabbitConsumerMiddleware], None] = None,
+        exchange_params: ExchangeParams = ExchangeParams(),
     ) -> None:
         self.app = None
         self.consumers = set()
+        self.exchange_params = exchange_params
         self.queue_params = queue_params
         self.middlewares = middlewares or []
 
@@ -138,6 +143,7 @@ class RabbitMQ:
         if development:
             self.queue_prefix = "dev." + str(uuid4()) + queue_prefix
             self.queue_params = QueueParams(False, True, True)
+            self.exchange_params = ExchangeParams(False, True, False)
 
         # Run every consumer queue
         for consumer in self.consumers:
@@ -313,7 +319,11 @@ class RabbitMQ:
 
         # Declare exchange
         channel.exchange_declare(
-            exchange=self.exchange_name, exchange_type=exchange_type
+            exchange=self.exchange_name,
+            exchange_type=exchange_type,
+            durable=self.exchange_params.durable,
+            auto_delete=self.exchange_params.auto_delete,
+            internal=self.exchange_params.internal,
         )
 
         # Creates new queue or connects to existing one
