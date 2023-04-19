@@ -321,6 +321,7 @@ class RabbitMQ:
         channel.exchange_declare(
             exchange=self.exchange_name,
             exchange_type=exchange_type,
+            passive=self.exchange_params.passive,
             durable=self.exchange_params.durable,
             auto_delete=self.exchange_params.auto_delete,
             internal=self.exchange_params.internal,
