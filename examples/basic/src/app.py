@@ -15,7 +15,6 @@ def create_app():
 
     app.config['MQ_URL'] = os.getenv('MQ_URL')
     app.config['MQ_EXCHANGE'] = os.getenv('MQ_EXCHANGE')
-    app.config['FLASK_ENV'] = os.getenv('FLASK_ENV')
 
     rabbit.init_app(
         app,

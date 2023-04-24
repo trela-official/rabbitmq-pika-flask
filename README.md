@@ -2,7 +2,7 @@
 
 RabbitMQs pika library adapter for Flask. It's developed with the goal to make it easier to integrate the recommended RabbitMQ library with Flask.
 
-For now our attention is focused at the topics exchange type.
+For now our attention is focused on the `topic` exchange type.
 
 ## Installing
 
@@ -12,11 +12,15 @@ Install and update using [pip](https://pip.pypa.io/en/stable/quickstart/):
     pip install rabbitmq-pika-flask
 ```
 
-Add the following variables to your environment or the Flask settings:
+Set the following environment variables or set them in your Flask app config:
 
-- FLASK_ENV=Flask environment, such as \_production* or _development_
 - MQ_EXCHANGE=Your exchange name
 - MQ_URL=Your MQ URL following [this format](https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html)
+
+### Development mode
+  - Set the `FLASK_ENV` environment variable or the `ENV` config key of your Flask app to `development` (Flask < v2.0)
+  - Set the `FLASK_DEBUG` environment variable or the `DEBUG` config key of your Flask app to `True` (Flask >= v2.0)
+  - Or pass 'development=True' to `init()` or `init_app()`
 
 ## Basic Example
 
@@ -51,7 +55,7 @@ Check examples in the `examples` folder
 ## Contributing
 
 Still learning how to make a good open source project. Any ideas would be great.
-But if feel free to open an `issue` or `pull request` if you have any problems or ideas.
+But feel free to open an `issue` or `pull request` if you have any problems or ideas.
 
 ## Author
 

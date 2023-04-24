@@ -49,6 +49,7 @@ class RabbitMQ:
 
     get_connection: Callable[[], BlockingConnection]
     consumers: set
+    development: bool or None
 
     body_parser: Callable or None
     msg_parser: Callable or None
@@ -69,7 +70,7 @@ class RabbitMQ:
         body_parser: Callable = None,
         msg_parser: Callable = None,
         queue_params: QueueParams = QueueParams(),
-        development: bool = False,
+        development: bool = None,
         on_message_error_callback: Union[MessageErrorCallback, None] = None,
         middlewares: Union[List[RabbitConsumerMiddleware], None] = None,
         exchange_params: ExchangeParams = ExchangeParams(),
@@ -97,7 +98,7 @@ class RabbitMQ:
         queue_prefix: str,
         body_parser: Callable = lambda body: body,
         msg_parser: Callable = lambda msg: msg,
-        development: bool = False,
+        development: bool = None,
         on_message_error_callback: Union[MessageErrorCallback, None] = None,
         middlewares: Union[List[RabbitConsumerMiddleware], None] = None,
     ):
@@ -110,7 +111,8 @@ class RabbitMQ:
                 parse received messages. Defaults to None.
             msg_parser (Callable, optional): A parser function to
                 parse messages to be sent. Defaults to None.
-            development (bool, optional): If the app is in development mode. Defaults to False.
+            development (bool, optional): Overrides development mode checks. Defaults to None, which causes
+                development status to be checked using Flask builtin variables.
             on_message_error_callback (Callable, optional): Function that's called when the processing of
                 a message fails due to an exception.
             middlewares: List of callables that are called, in order, to process a rabbitmq
@@ -118,32 +120,45 @@ class RabbitMQ:
         """
 
         self.app = app
-        self.queue_prefix = queue_prefix
         self.config = app.config
 
-        self._check_env()
-
+        self.queue_prefix = queue_prefix
         self.body_parser = body_parser
         self.msg_parser = msg_parser
-        self.development = development
-        self.exchange_name = self.config["MQ_EXCHANGE"]
         self.on_message_error_callback = on_message_error_callback
         self.middlewares.extend(middlewares or [])
 
-        params = URLParameters(self.config["MQ_URL"])
+        self.exchange_name = self.config.get("MQ_EXCHANGE") or os.getenv("MQ_EXCHANGE")
+        assert (
+            self.exchange_name,
+            "MQ_EXCHANGE not set. Please define a default exchange name.",
+        )
+        mq_url = self.config.get("MQ_URL") or os.getenv("MQ_URL")
+        assert (
+            mq_url,
+            "MQ_URL not set. Please define the RabbitMQ url using this format: https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html",
+        )
+        self.development = (
+            development
+            if development is not None
+            else (
+                self.config.get("ENV") == "development"
+                or os.getenv("FLASK_ENV") == "development"
+                or self.config.get("DEBUG") == "1"
+                or os.getenv("FLASK_DEBUG") == "1"
+            )
+        )
+
+        params = URLParameters(mq_url)
         self.get_connection = lambda: BlockingConnection(params)
 
-        # Avoiding running twice when flask in debug mode
-        if (
-            os.getenv("FLASK_ENV") == "production"
-            or os.getenv("WERKZEUG_RUN_MAIN") == "true"
-        ):
-            self._validate_connection()
-
-        if development:
+        if self.development:
             self.queue_prefix = "dev." + str(uuid4()) + queue_prefix
             self.queue_params = QueueParams(False, True, True)
             self.exchange_params = ExchangeParams(False, True, False)
+        else:
+            # Avoiding running twice when flask in debug mode
+            self._validate_connection()
 
         # Run every consumer queue
         for consumer in self.consumers:
@@ -158,26 +173,6 @@ class RabbitMQ:
         except Exception as error:  # pylint: disable=broad-except
             self.app.logger.error("Invalid RabbitMQ connection")
             self.app.logger.error(error.__class__.__name__)
-
-    def _check_env(self):
-        """assert env variables are set"""
-
-        if not any(
-            (os.getenv("FLASK_ENV"), self.config.get("FLASK_ENV"))
-        ):
-            """
-            If FLASK_ENV is not set, assumes development configs
-            """
-            self.config["FLASK_ENV"] = "development"
-
-        assert any((os.getenv("MQ_URL"), self.config.get("MQ_URL"))), (
-            "No MQ_URL variable found. Please add one following this"
-            + " format https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html"
-        )
-
-        assert any(
-            (os.getenv("MQ_EXCHANGE"), self.config.get("MQ_EXCHANGE"))
-        ), "No MQ_EXCHANGE variable found. Please add a default exchange"
 
     def _build_queue_name(self, func: Callable):
         """Builds queue name from function name"""
@@ -204,10 +199,7 @@ class RabbitMQ:
 
         def decorator(f):
             # ignore flask default reload when on debug mode
-            if (
-                os.getenv("FLASK_ENV") == "production"
-                or os.getenv("WERKZEUG_RUN_MAIN") == "true"
-            ):
+            if not self.development:
                 nonlocal props_needed
                 if props_needed is None:
                     f_signature = inspect.signature(f).parameters
