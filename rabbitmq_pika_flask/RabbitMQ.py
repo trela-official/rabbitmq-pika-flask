@@ -154,7 +154,7 @@ class RabbitMQ:
 
         if self.development:
             self.queue_prefix = "dev." + str(uuid4()) + queue_prefix
-            self.queue_params = QueueParams(durable=False, auto_delete=True, exclusive=False)
+            self.queue_params = QueueParams(durable=False, auto_delete=True, exclusive=False, passive=False)
             self.exchange_params = ExchangeParams(passive=False, durable=False, auto_delete=True, internal=False)
         else:
             # Avoiding running twice when flask in debug mode
@@ -344,6 +344,7 @@ class RabbitMQ:
 
         channel.queue_declare(
             queue_name,
+            passive=self.queue_params.passive,
             durable=self.queue_params.durable,
             auto_delete=self.queue_params.auto_delete,
             exclusive=self.queue_params.exclusive,
