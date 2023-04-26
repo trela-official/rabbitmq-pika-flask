@@ -154,9 +154,10 @@ class RabbitMQ:
 
         if self.development:
             self.queue_prefix = "dev." + str(uuid4()) + queue_prefix
-            self.queue_params = QueueParams(False, True, True)
-            self.exchange_params = ExchangeParams(False, True, False)
-        else:
+            self.queue_params = QueueParams(durable=False, auto_delete=True, exclusive=False, passive=False)
+            self.exchange_params = ExchangeParams(passive=False, durable=False, auto_delete=True, internal=False)
+
+        if not self.development or os.getenv("WERKZEUG_RUN_MAIN") == "true":
             # Avoiding running twice when flask in debug mode
             self._validate_connection()
 
@@ -199,7 +200,7 @@ class RabbitMQ:
 
         def decorator(f):
             # ignore flask default reload when on debug mode
-            if not self.development:
+            if not self.development or os.getenv("WERKZEUG_RUN_MAIN") == "true":
                 nonlocal props_needed
                 if props_needed is None:
                     f_signature = inspect.signature(f).parameters
@@ -344,6 +345,7 @@ class RabbitMQ:
 
         channel.queue_declare(
             queue_name,
+            passive=self.queue_params.passive,
             durable=self.queue_params.durable,
             auto_delete=self.queue_params.auto_delete,
             exclusive=self.queue_params.exclusive,
