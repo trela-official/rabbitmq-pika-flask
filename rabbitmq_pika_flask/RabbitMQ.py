@@ -129,15 +129,11 @@ class RabbitMQ:
         self.middlewares.extend(middlewares or [])
 
         self.exchange_name = self.config.get("MQ_EXCHANGE") or os.getenv("MQ_EXCHANGE")
-        assert (
-            self.exchange_name,
-            "MQ_EXCHANGE not set. Please define a default exchange name.",
-        )
+        assert_msg = "MQ_EXCHANGE not set. Please define a default exchange name."
+        assert self.exchange_name, assert_msg
         mq_url = self.config.get("MQ_URL") or os.getenv("MQ_URL")
-        assert (
-            mq_url,
-            "MQ_URL not set. Please define the RabbitMQ url using this format: https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html",
-        )
+        assert_msg = "MQ_URL not set. Please define the RabbitMQ url using this format: https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html"
+        assert mq_url, assert_msg
         self.development = (
             development
             if development is not None
