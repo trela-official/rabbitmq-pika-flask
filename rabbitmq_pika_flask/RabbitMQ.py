@@ -442,6 +442,8 @@ class RabbitMQ:
                 properties["message_id"] = sha256(json.dumps(body).encode("utf-8")).hexdigest()
             if "timestamp" not in properties:
                 properties["timestamp"] = int(datetime.now().timestamp())
+            if "delivery_mode" not in properties:
+                properties["delivery_mode"]=spec.PERSISTENT_DELIVERY_MODE
 
             if "headers" not in properties:
                 properties["headers"] = {}
