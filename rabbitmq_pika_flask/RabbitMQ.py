@@ -1,13 +1,14 @@
 import inspect
 import itertools
 import json
+import logging
 import os
 from datetime import datetime
 from enum import Enum, auto
 from functools import wraps
 from hashlib import sha256
 from threading import Thread
-from typing import Any, Callable, List, Union
+from typing import Any, Callable, Dict, List, Set, Union
 from uuid import uuid4
 
 from flask.app import Flask
@@ -49,11 +50,11 @@ class RabbitMQ:
     config: Config
 
     get_connection: Callable[[], BlockingConnection]
-    consumers: set
-    development: bool or None
+    consumers: Set[Callable[[], None]]
+    development: bool
 
-    body_parser: Callable or None
-    msg_parser: Callable or None
+    body_parser: Callable
+    msg_parser: Callable
 
     exchange_name: str
     exchange_params: ExchangeParams
@@ -66,19 +67,19 @@ class RabbitMQ:
 
     def __init__(
         self,
-        app: Flask = None,
+        app: Union[Flask, None] = None,
         queue_prefix: str = "",
-        body_parser: Callable = None,
-        msg_parser: Callable = None,
+        body_parser: Union[Callable, None] = None,
+        msg_parser: Union[Callable, None] = None,
         queue_params: QueueParams = QueueParams(),
-        development: bool = None,
+        development: Union[bool, None] = None,
         on_message_error_callback: Union[MessageErrorCallback, None] = None,
         middlewares: Union[List[RabbitConsumerMiddleware], None] = None,
         exchange_params: ExchangeParams = ExchangeParams(),
         *,
-        default_send_properties: dict[str, Any] | None = None,
+        default_send_properties: Union[Dict[str, Any], None] = None,
     ) -> None:
-        self.app = None
+        self.app = None  # type: ignore
         self.consumers = set()
         self.exchange_params = exchange_params
         self.queue_params = queue_params
@@ -107,9 +108,9 @@ class RabbitMQ:
         self,
         app: Flask,
         queue_prefix: str,
-        body_parser: Callable = lambda body: body,
-        msg_parser: Callable = lambda msg: msg,
-        development: bool = None,
+        body_parser: Union[Callable, None] = None,
+        msg_parser: Union[Callable, None] = None,
+        development: Union[bool, None] = None,
         on_message_error_callback: Union[MessageErrorCallback, None] = None,
         middlewares: Union[List[RabbitConsumerMiddleware], None] = None,
     ):
@@ -134,17 +135,10 @@ class RabbitMQ:
         self.config = app.config
 
         self.queue_prefix = queue_prefix
-        self.body_parser = body_parser
-        self.msg_parser = msg_parser
+        self.body_parser = body_parser or (lambda body: body)
+        self.msg_parser = msg_parser or (lambda msg: msg)
         self.on_message_error_callback = on_message_error_callback
         self.middlewares.extend(middlewares or [])
-
-        self.exchange_name = self.config.get("MQ_EXCHANGE") or os.getenv("MQ_EXCHANGE")
-        assert_msg = "MQ_EXCHANGE not set. Please define a default exchange name."
-        assert self.exchange_name, assert_msg
-        mq_url = self.config.get("MQ_URL") or os.getenv("MQ_URL")
-        assert_msg = "MQ_URL not set. Please define the RabbitMQ url using this format: https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html"
-        assert mq_url, assert_msg
 
         if development is not None:
             self._override_development = development
@@ -154,6 +148,17 @@ class RabbitMQ:
             else self._should_use_development_mode(self.config)
         )
 
+        exchange_name = self.config.get("MQ_EXCHANGE") or os.getenv("MQ_EXCHANGE")
+        assert (
+            exchange_name
+        ), "MQ_EXCHANGE not set. Please define a default exchange name."
+        self.exchange_name = exchange_name
+
+        mq_url = self.config.get("MQ_URL") or os.getenv("MQ_URL")
+        assert mq_url, (
+            "MQ_URL not set. Please define the RabbitMQ url using this format: "
+            "https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html"
+        )
         params = URLParameters(mq_url)
         self.get_connection = lambda: BlockingConnection(params)
 
@@ -174,6 +179,11 @@ class RabbitMQ:
         for consumer in self.consumers:
             consumer()
 
+    @property
+    def _logger(self) -> logging.Logger:
+        assert self.app, "RabbitMQ not initialized, you must call init_app."
+        return self.app.logger  # type: ignore
+
     @staticmethod
     def _should_use_development_mode(config: Config | None = None) -> bool:
         """Returns `True` if we should run in development mode, based on the env/cfg."""
@@ -190,11 +200,11 @@ class RabbitMQ:
         try:
             connection = self.get_connection()
             if connection.is_open:
-                self.app.logger.info("Connected to RabbitMQ")
+                self._logger.info("Connected to RabbitMQ")
                 connection.close()
         except Exception as error:  # pylint: disable=broad-except
-            self.app.logger.error("Invalid RabbitMQ connection")
-            self.app.logger.error(error.__class__.__name__)
+            self._logger.error("Invalid RabbitMQ connection")
+            self._logger.error(error.__class__.__name__)
 
     def _build_queue_name(self, func: Callable):
         """Builds queue name from function name"""
@@ -207,7 +217,7 @@ class RabbitMQ:
         exchange_type: ExchangeType = ExchangeType.DEFAULT,
         auto_ack: bool = False,
         dead_letter_exchange: bool = False,
-        props_needed: List[str] = None,
+        props_needed: List[str] | None = None,
     ):
         """Creates new RabbitMQ queue
 
@@ -326,14 +336,16 @@ class RabbitMQ:
         channel = connection.channel()
 
         # declare dead letter exchange if needed
+        dead_letter_exchange_name = f"dead.letter.{self.exchange_name}"
         if dead_letter_exchange:
-            dead_letter_exchange_name = f"dead.letter.{self.exchange_name}"
-            channel.exchange_declare(dead_letter_exchange_name, ExchangeType.DIRECT)
+            channel.exchange_declare(
+                dead_letter_exchange_name, ExchangeType.DIRECT.value
+            )
 
         # Declare exchange
         channel.exchange_declare(
             exchange=self.exchange_name,
-            exchange_type=exchange_type,
+            exchange_type=exchange_type.value,
             passive=self.exchange_params.passive,
             durable=self.exchange_params.durable,
             auto_delete=self.exchange_params.auto_delete,
@@ -371,7 +383,7 @@ class RabbitMQ:
             exclusive=self.queue_params.exclusive,
             arguments=exchange_args,
         )
-        self.app.logger.info(f"Declaring Queue: {queue_name}")
+        self._logger.info(f"Declaring Queue: {queue_name}")
 
         # Bind queue to exchange
         routing_keys = routing_key if isinstance(routing_key, list) else [routing_key]
@@ -418,8 +430,8 @@ class RabbitMQ:
                         # ack message after fn was ran
                         channel.basic_ack(method.delivery_tag)
                 except Exception as err:  # pylint: disable=broad-except
-                    self.app.logger.error(f"ERROR IN {queue_name}: {err}")
-                    self.app.logger.exception(err)
+                    self._logger.error(f"ERROR IN {queue_name}: {err}")
+                    self._logger.exception(err)
 
                     try:
                         if not auto_ack:
@@ -444,7 +456,7 @@ class RabbitMQ:
         try:
             channel.start_consuming()
         except Exception as err:
-            self.app.logger.error(err)
+            self._logger.error(err)
             channel.stop_consuming()
             connection.close()
 
@@ -500,8 +512,8 @@ class RabbitMQ:
 
             channel.close()
         except Exception as err:
-            self.app.logger.error("Error while sending message")
-            self.app.logger.error(err)
+            self._logger.error("Error while sending message")
+            self._logger.error(err)
 
             raise AMQPConnectionError from err
 
