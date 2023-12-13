@@ -1,12 +1,10 @@
-from .RabbitMQ import ExchangeType
-from .RabbitMQ import RabbitMQ
 from .RabbitConsumerMiddleware import (
     RabbitConsumerMessage,
     RabbitConsumerMiddleware,
     RabbitConsumerMiddlewareCallNext,
     RabbitConsumerMiddlewareError,
 )
-
+from .RabbitMQ import ExchangeType, RabbitMQ
 
 __all__ = [
     "ExchangeType",
