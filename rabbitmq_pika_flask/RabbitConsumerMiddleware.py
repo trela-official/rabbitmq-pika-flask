@@ -46,7 +46,9 @@ def call_middlewares(
             middleware = next(middlewares_iter)
         except StopIteration as e:
             # We can't be 100% sure which middleware did this
-            raise RabbitConsumerMiddlewareError("Middleware called `call_next` twice.")
+            raise RabbitConsumerMiddlewareError(
+                "Middleware called `call_next` twice."
+            ) from e
         middleware(message, call_next)
 
     call_next(message)
