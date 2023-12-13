@@ -85,6 +85,13 @@ class RabbitMQ:
         self.middlewares = middlewares or []
         self.default_send_properties = default_send_properties or {}
 
+        self._override_development = development
+        self.development = (
+            self._override_development
+            if self._override_development is not None
+            else self._should_use_development_mode()
+        )
+
         if app is not None:
             self.init_app(
                 app,
@@ -138,15 +145,13 @@ class RabbitMQ:
         mq_url = self.config.get("MQ_URL") or os.getenv("MQ_URL")
         assert_msg = "MQ_URL not set. Please define the RabbitMQ url using this format: https://pika.readthedocs.io/en/stable/examples/using_urlparameters.html"
         assert mq_url, assert_msg
+
+        if development is not None:
+            self._override_development = development
         self.development = (
-            development
-            if development is not None
-            else (
-                self.config.get("ENV") == "development"
-                or os.getenv("FLASK_ENV") == "development"
-                or self.config.get("DEBUG") == "1"
-                or os.getenv("FLASK_DEBUG") == "1"
-            )
+            self._override_development
+            if self._override_development is not None
+            else self._should_use_development_mode(self.config)
         )
 
         params = URLParameters(mq_url)
@@ -168,6 +173,18 @@ class RabbitMQ:
         # Run every consumer queue
         for consumer in self.consumers:
             consumer()
+
+    @staticmethod
+    def _should_use_development_mode(config: Config | None = None) -> bool:
+        """Returns `True` if we should run in development mode, based on the env/cfg."""
+        return (
+            (
+                config is not None
+                and (config.get("ENV") == "development" or config.get("DEBUG") == "1")
+            )
+            or os.getenv("FLASK_ENV") == "development"
+            or os.getenv("FLASK_DEBUG") == "1"
+        )
 
     def _validate_connection(self):
         try:
