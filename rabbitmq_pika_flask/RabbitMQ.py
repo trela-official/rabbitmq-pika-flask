@@ -18,8 +18,8 @@ from pika.exceptions import AMQPConnectionError
 from retry import retry
 from retry.api import retry_call
 
-from rabbitmq_pika_flask.ExchangeType import ExchangeType
 from rabbitmq_pika_flask.ExchangeParams import ExchangeParams
+from rabbitmq_pika_flask.ExchangeType import ExchangeType
 from rabbitmq_pika_flask.QueueParams import QueueParams
 from rabbitmq_pika_flask.RabbitConsumerMiddleware import (
     RabbitConsumerMessage,
@@ -29,7 +29,8 @@ from rabbitmq_pika_flask.RabbitConsumerMiddleware import (
 
 # (queue_name, dlq_name, method, props, body, exception)
 MessageErrorCallback = Callable[
-    [str, Union[str, None], spec.Basic.Deliver, spec.BasicProperties, str, Exception], Any
+    [str, Union[str, None], spec.Basic.Deliver, spec.BasicProperties, str, Exception],
+    Any,
 ]
 
 
@@ -153,8 +154,12 @@ class RabbitMQ:
 
         if self.development:
             self.queue_prefix = "dev." + str(uuid4()) + queue_prefix
-            self.queue_params = QueueParams(durable=False, auto_delete=True, exclusive=False, passive=False)
-            self.exchange_params = ExchangeParams(passive=False, durable=False, auto_delete=True, internal=False)
+            self.queue_params = QueueParams(
+                durable=False, auto_delete=True, exclusive=False, passive=False
+            )
+            self.exchange_params = ExchangeParams(
+                passive=False, durable=False, auto_delete=True, internal=False
+            )
 
         if not self.development or os.getenv("WERKZEUG_RUN_MAIN") == "true":
             # Avoiding running twice when flask in debug mode
@@ -209,7 +214,6 @@ class RabbitMQ:
 
                 @wraps(f)
                 def new_consumer():
-
                     return self._setup_connection(
                         f,
                         routing_key,
@@ -389,7 +393,8 @@ class RabbitMQ:
                         routing_key, body, self.body_parser(decoded_body), method, props
                     )
                     call_middlewares(
-                        message, itertools.chain(list(self.middlewares), [user_consumer])
+                        message,
+                        itertools.chain(list(self.middlewares), [user_consumer]),
                     )
 
                     if not auto_ack:
@@ -407,7 +412,12 @@ class RabbitMQ:
                     finally:
                         if self.on_message_error_callback is not None:
                             self.on_message_error_callback(
-                                queue_name, dead_letter_queue_name, method, props, decoded_body, err
+                                queue_name,
+                                dead_letter_queue_name,
+                                method,
+                                props,
+                                decoded_body,
+                                err,
                             )
 
         channel.basic_consume(
@@ -424,7 +434,12 @@ class RabbitMQ:
             raise AMQPConnectionError from err
 
     def _send_msg(
-        self, body, routing_key, exchange_type, message_version: str = "v1.0.0", **properties
+        self,
+        body,
+        routing_key,
+        exchange_type,
+        message_version: str = "v1.0.0",
+        **properties,
     ):
         try:
             channel = self.get_connection().channel()
@@ -440,13 +455,15 @@ class RabbitMQ:
 
             if self.msg_parser:
                 body = self.msg_parser(body)
-            
+
             for key, value in self.default_send_properties.items():
                 if key not in properties:
                     properties[key] = value
 
             if "message_id" not in properties:
-                properties["message_id"] = sha256(json.dumps(body).encode("utf-8")).hexdigest()
+                properties["message_id"] = sha256(
+                    json.dumps(body).encode("utf-8")
+                ).hexdigest()
             if "timestamp" not in properties:
                 properties["timestamp"] = int(datetime.now().timestamp())
 
@@ -454,7 +471,7 @@ class RabbitMQ:
                 properties["headers"] = {}
             elif properties["headers"] is self.default_send_properties.get("headers"):
                 properties["headers"] = properties["headers"].copy()
-                
+
             properties["headers"]["x-message-version"] = message_version
 
             channel.basic_publish(
@@ -478,7 +495,7 @@ class RabbitMQ:
         exchange_type: ExchangeType = ExchangeType.DEFAULT,
         retries: int = 5,
         message_version: str = "v1.0.0",
-        **properties
+        **properties,
     ):
         """Sends a message to a given routing key
 
@@ -506,7 +523,7 @@ class RabbitMQ:
         exchange_type: ExchangeType = ExchangeType.DEFAULT,
         retries: int = 5,
         message_version: str = "v1.0.0",
-        **properties
+        **properties,
     ):
         """Sends a message to a given routing key synchronously
 
@@ -526,5 +543,5 @@ class RabbitMQ:
             exceptions=(AMQPConnectionError, AssertionError),
             tries=retries,
             delay=5,
-            jitter=(5, 15)
+            jitter=(5, 15),
         )

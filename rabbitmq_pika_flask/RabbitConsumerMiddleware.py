@@ -1,7 +1,7 @@
 import itertools
 from typing import Any, Callable, Iterator
-from pika import spec
 
+from pika import spec
 
 RabbitConsumerMiddlewareCallNext = Callable[["RabbitConsumerMessage"], Any]
 RabbitConsumerMiddleware = Callable[
