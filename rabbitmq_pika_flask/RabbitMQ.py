@@ -74,12 +74,15 @@ class RabbitMQ:
         on_message_error_callback: Union[MessageErrorCallback, None] = None,
         middlewares: Union[List[RabbitConsumerMiddleware], None] = None,
         exchange_params: ExchangeParams = ExchangeParams(),
+        *,
+        default_send_properties: dict[str, Any] | None = None,
     ) -> None:
         self.app = None
         self.consumers = set()
         self.exchange_params = exchange_params
         self.queue_params = queue_params
         self.middlewares = middlewares or []
+        self.default_send_properties = default_send_properties or {}
 
         if app is not None:
             self.init_app(
@@ -437,16 +440,21 @@ class RabbitMQ:
 
             if self.msg_parser:
                 body = self.msg_parser(body)
+            
+            for key, value in self.default_send_properties.items():
+                if key not in properties:
+                    properties[key] = value
 
             if "message_id" not in properties:
                 properties["message_id"] = sha256(json.dumps(body).encode("utf-8")).hexdigest()
             if "timestamp" not in properties:
                 properties["timestamp"] = int(datetime.now().timestamp())
-            if "delivery_mode" not in properties:
-                properties["delivery_mode"]=spec.PERSISTENT_DELIVERY_MODE
 
-            if "headers" not in properties:
+            if properties.get("headers") is None:
                 properties["headers"] = {}
+            elif properties["headers"] is self.default_send_properties.get("headers"):
+                properties["headers"] = properties["headers"].copy()
+                
             properties["headers"]["x-message-version"] = message_version
 
             channel.basic_publish(
