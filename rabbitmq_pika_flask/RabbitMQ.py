@@ -77,11 +77,13 @@ class RabbitMQ:
         middlewares: Union[List[RabbitConsumerMiddleware], None] = None,
         exchange_params: ExchangeParams = ExchangeParams(),
         *,
+        dead_letter_exchange_params: ExchangeParams = ExchangeParams(),
         default_send_properties: Union[Dict[str, Any], None] = None,
     ) -> None:
         self.app = None  # type: ignore
         self.consumers = set()
         self.exchange_params = exchange_params
+        self.dead_letter_exchange_params = dead_letter_exchange_params
         self.queue_params = queue_params
         self.middlewares = middlewares or []
         self.default_send_properties = default_send_properties or {}
@@ -170,6 +172,7 @@ class RabbitMQ:
             self.exchange_params = ExchangeParams(
                 passive=False, durable=False, auto_delete=True, internal=False
             )
+            self.dead_letter_exchange_params = ExchangeParams()
 
         if not self.development or os.getenv("WERKZEUG_RUN_MAIN") == "true":
             # Avoiding running twice when flask in debug mode
@@ -339,7 +342,12 @@ class RabbitMQ:
         dead_letter_exchange_name = f"dead.letter.{self.exchange_name}"
         if dead_letter_exchange:
             channel.exchange_declare(
-                dead_letter_exchange_name, ExchangeType.DIRECT.value
+                dead_letter_exchange_name,
+                ExchangeType.DIRECT.value,
+                passive=self.dead_letter_exchange_params.passive,
+                durable=self.dead_letter_exchange_params.durable,
+                auto_delete=self.dead_letter_exchange_params.auto_delete,
+                internal=self.dead_letter_exchange_params.internal,
             )
 
         # Declare exchange
