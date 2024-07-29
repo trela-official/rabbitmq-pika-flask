@@ -1,3 +1,7 @@
+# IMPORTANT NOTICE
+
+This library is no longer being maintained.
+
 # RabbitMQ Pika Flask
 
 RabbitMQs pika library adapter for Flask. It's developed with the goal to make it easier to integrate the recommended RabbitMQ library with Flask.
